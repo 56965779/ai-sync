@@ -1,0 +1,37 @@
+{
+  "_comment": "ai-sync 服务端配置模板。复制为 sync_config.json（已 .gitignore），务必改掉所有 token 后再启动。",
+  "_warning": "CHANGE_ME_* 为占位符。生产环境请使用 32 字节以上随机值；服务端应拒绝默认/弱 token 启动。scopes.<name>.work_dir 必须是绝对路径。",
+  "version": "4.39.0",
+  "global": {
+    "allow_ips": [],
+    "rate_limit": {
+      "enabled": true,
+      "per_token_per_minute": 300,
+      "per_ip_per_second": 20,
+      "upload_per_minute": 60
+    },
+    "gzip_threshold_kb": 16,
+    "gzip_force": false,
+    "audit_enabled": true,
+    "exec_enabled": false
+  },
+  "_comment_tokens": "每个 token 授权可访问的 scope 列表与权限。生产环境不要授予 exec/lint，除非确实需要。",
+  "tokens": {
+    "CHANGE_ME_client_token": {
+      "name": "default",
+      "scopes": ["works"],
+      "permissions": ["read", "write", "delete"]
+    }
+  },
+  "_comment_admin": "admin_token 拥有全部 scope 与 admin 权限，仅用于管理，不要下发给客户端。",
+  "admin_token": "CHANGE_ME_admin_token",
+  "scopes": {
+    "works": {
+      "work_dir": "/path/to/your/workdir",
+      "max_upload_mb": 50,
+      "exec_enabled": false,
+      "exec_allow_ips": [],
+      "webhook_dir": "ai-sync/webhooks/"
+    }
+  }
+}
