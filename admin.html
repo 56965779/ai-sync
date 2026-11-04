@@ -1,0 +1,3364 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT
+     Copyright (c) 2026 金鑫 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ai-sync 管理面板</title>
+<style>
+:root {
+  --bg:#0a0a0a; --bg-card:#161616; --bg-hover:#1e1e1e; --border:#2a2a2a; --border-light:#333;
+  --text:#f0f0f0; --text-dim:#999; --text-faint:#666;
+  --accent:#ff6b35; --accent-hover:#ff8555; --accent-dim:rgba(255,107,53,0.15);
+  --green:#4caf50; --red:#f44336; --yellow:#ff9800; --blue:#2196f3;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+/* 登录页 */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:32px 28px;width:100%;max-width:400px}
+.login-card h1{font-size:20px;margin-bottom:8px;background:linear-gradient(135deg,#ff6b35,#ff9558);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.login-card p{color:var(--text-dim);font-size:13px;margin-bottom:24px}
+.login-card input{width:100%;height:44px;padding:0 16px;font-size:15px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none;margin-bottom:12px;-webkit-appearance:none;transition:border-color .15s}
+.login-card input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.login-card input::placeholder{color:var(--text-faint)}
+.login-card button{width:100%;height:46px;font-size:15px;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.login-card button:hover{background:var(--accent-hover)}
+.login-card button:active{transform:scale(.97)}
+.login-card button:disabled{opacity:.5;cursor:not-allowed}
+.login-error{color:var(--red);font-size:12px;margin-top:8px;min-height:16px}
+/* 主布局 */
+.app{display:none}
+.app.show{display:block}
+.topbar{background:rgba(10,10,10,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border);height:52px}
+.topbar .logo{font-size:15px;font-weight:800;background:linear-gradient(135deg,#ff6b35,#ff9558);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.topbar .info{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);flex-shrink:0}
+.topbar .logout{padding:6px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-dim);cursor:pointer;font-size:12px;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.topbar .logout:hover{color:var(--red);border-color:var(--red)}
+/* 标签页 */
+.tabs{display:flex;gap:2px;background:var(--bg-card);padding:4px;border-radius:10px;margin:12px auto 0;max-width:1200px;width:calc(100% - 24px);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.tabs::-webkit-scrollbar{height:3px}
+.tabs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.tab{padding:7px 14px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;color:var(--text-dim);white-space:nowrap;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:#fff}
+/* 内容区 */
+.content{max-width:1200px;margin:16px auto;padding:0 16px 80px}
+.panel{display:none}
+.panel.show{display:block}
+/* 卡片 */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card h2{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h2 .badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--accent-dim);color:var(--accent)}
+/* 统计网格 */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.stat-box{background:var(--bg-hover);border:1px solid var(--border);border-radius:10px;padding:14px}
+.stat-box .label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-box .value{font-size:22px;font-weight:700}
+.stat-box .sub{font-size:11px;color:var(--text-dim);margin-top:4px}
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;color:var(--text-dim);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--bg-hover)}
+.perm-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;margin:1px}
+.perm-read{background:rgba(76,175,80,.15);color:var(--green)}
+.perm-write{background:rgba(33,150,243,.15);color:var(--blue)}
+.perm-delete{background:rgba(244,67,54,.15);color:var(--red)}
+.perm-exec{background:rgba(255,152,0,.15);color:var(--yellow)}
+.perm-lint{background:rgba(156,39,176,.15);color:#ce93d8}
+.perm-backup{background:rgba(0,188,212,.15);color:#4dd0e1}
+.perm-admin{background:var(--accent-dim);color:var(--accent)}
+.token-cell{font-family:monospace;font-size:12px;color:var(--text-dim)}
+/* 按钮 */
+.btn{padding:8px 16px;font-size:13px;font-weight:600;border:none;border-radius:8px;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:active{transform:scale(.97)}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--border)}
+.btn-danger:hover{background:rgba(244,67,54,.1);border-color:var(--red)}
+.btn-sm{padding:6px 12px;font-size:12px;min-height:32px}
+.btn-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+/* 表单 */
+.form-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.form-field{flex:1;min-width:180px}
+.form-field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-field input,.form-field select{width:100%;height:40px;padding:0 12px;font-size:14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none;-webkit-appearance:none;transition:border-color .15s}
+.form-field input:focus,.form-field select:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+.form-field input::placeholder{color:var(--text-faint)}
+.checkbox-group{display:flex;flex-wrap:wrap;gap:8px}
+.checkbox-group label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-dim);text-transform:none;letter-spacing:0;cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:6px;min-height:36px;-webkit-tap-highlight-color:transparent}
+.checkbox-group label:hover{border-color:var(--border-light)}
+.checkbox-group input{width:auto;height:auto}
+.checkbox-group label.checked{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+/* 审计日志 */
+.log-entry{font-family:monospace;font-size:12px;padding:8px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap}
+.log-entry .ts{color:var(--text-faint);min-width:130px}
+.log-entry .action{color:var(--accent);min-width:90px}
+.log-entry .code{min-width:40px}
+.log-entry .code.err{color:var(--red)}
+.log-entry .path{color:var(--text-dim);flex:1;word-break:break-all;min-width:100%}
+/* 审计日志 - 人类可读卡片版 */
+.aud-summary{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.aud-chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--bg-hover);border:1px solid var(--border);color:var(--text-dim)}
+.aud-chip b{color:var(--text)}
+.aud-chip.err{border-color:rgba(244,67,54,.45);color:var(--red)}
+.aud-item{border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-card);overflow:hidden}
+.aud-item>summary{list-style:none;cursor:pointer;padding:9px 11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px}
+.aud-item>summary::-webkit-details-marker{display:none}
+.aud-item[open]>summary{border-bottom:1px dashed var(--border)}
+.aud-time{color:var(--text-faint);font-family:monospace}
+.aud-act{color:var(--accent);font-weight:600}
+.aud-act small{color:var(--text-faint);font-weight:400;font-family:monospace;margin-left:4px}
+.aud-badge{font-size:11px;padding:1px 7px;border-radius:999px;background:rgba(76,175,80,.15);color:var(--green)}
+.aud-badge.err{background:rgba(244,67,54,.15);color:var(--red)}
+.aud-who{color:var(--text-faint);font-family:monospace;margin-left:auto}
+.aud-desc{flex-basis:100%;color:var(--text-dim);word-break:break-all;line-height:1.55}
+.aud-detail{padding:9px 11px 11px;font-size:12px;color:var(--text-dim)}
+.aud-kv{display:grid;grid-template-columns:92px 1fr;gap:4px 10px;font-family:monospace;font-size:11.5px}
+.aud-kv .k{color:var(--text-faint)}
+.aud-kv .v{color:var(--text);word-break:break-all;white-space:pre-wrap}
+.aud-out{margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:11px;color:var(--text-dim)}
+.aud-out .lbl{color:var(--text-faint);display:block;margin-bottom:3px}
+/* 状态指示 */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.status-dot.ok{background:var(--green)}
+.status-dot.err{background:var(--red)}
+.status-dot.warn{background:var(--yellow)}
+/* 加载 */
+.loading{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px}
+/* 响应式 - 平板 */
+@media(max-width:900px){
+  .content{padding:0 12px 80px}
+  .stats-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .form-row{flex-direction:row}
+}
+/* 响应式 - 手机 */
+@media(max-width:640px){
+  .topbar{padding:0 10px;height:48px}
+  .topbar .logo{font-size:13px}
+  .topbar .info{font-size:10px;gap:6px}
+  .topbar .logout{padding:5px 10px;font-size:11px}
+  #serverInfo{display:none}
+  .tabs{margin:8px auto 0;width:calc(100% - 16px);border-radius:8px;gap:1px}
+  .tab{padding:6px 10px;font-size:12px}
+  .content{padding:0 10px 100px}
+  .card{padding:12px;border-radius:10px}
+  .card h2{font-size:14px;margin-bottom:12px}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .stat-box{padding:12px 10px}
+  .stat-box .value{font-size:18px}
+  .form-row{flex-direction:column;gap:10px}
+  .form-field{min-width:100%}
+  .form-field input,.form-field select{height:42px;font-size:15px}
+  /* 表格变卡片式 */
+  table{font-size:12px;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  th{padding:8px 10px}
+  td{padding:8px 10px}
+  /* 按钮加大触摸区 */
+  .btn{padding:10px 16px;font-size:14px;min-height:42px}
+  .btn-sm{padding:8px 12px;font-size:13px;min-height:36px}
+  .btn-row{gap:6px}
+  .icon-btn{width:34px;height:34px;font-size:14px}
+  /* 最近变更: 时间/动作/结果同一行, 路径单独一行 */
+  .log-entry{flex-direction:row;gap:8px;align-items:baseline}
+  .log-entry .ts,.log-entry .action,.log-entry .code{min-width:auto}
+  /* toast 居中 */
+  .toast-container{left:10px;right:10px;top:10px}
+  .toast{max-width:100%;font-size:13px;padding:10px 16px}
+  /* 终端缩小 */
+  .terminal{font-size:11px;padding:12px;max-height:360px}
+  /* 文件列表行间距 */
+  .backup-item{flex-direction:column;align-items:flex-start;gap:6px}
+  .backup-item .btn{width:100%;text-align:center}
+}
+/* 响应式 - 超小屏 */
+@media(max-width:380px){
+  .topbar .logo{font-size:12px}
+  .stats-grid{grid-template-columns:1fr}
+  .tab{padding:5px 8px;font-size:11px}
+}
+/* 面包屑导航 */
+.breadcrumb{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+.breadcrumb a{color:var(--accent);cursor:pointer;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.breadcrumb a:hover{text-decoration:underline}
+.breadcrumb .sep{color:var(--text-faint);font-size:11px}
+/* toast */
+.toast-container{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;animation:slideIn .2s ease;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:420px}
+.toast.success{background:var(--green);color:#fff}
+.toast.error{background:var(--red);color:#fff}
+.toast.info{background:var(--blue);color:#fff}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+/* 工具栏 */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar .spacer{flex:1}
+.icon-btn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-dim);cursor:pointer;font-size:13px;transition:all .15s}
+.icon-btn:hover{color:var(--text);border-color:var(--accent)}
+.icon-btn.danger:hover{color:var(--red);border-color:var(--red)}
+/* 文件列表行操作 */
+tr .row-actions{white-space:nowrap}
+tr .row-actions button{margin-left:4px}
+/* 终端 */
+.terminal{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;line-height:1.6;max-height:480px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:#c9d1d9}
+.terminal .cmd{color:var(--accent)}
+.terminal .err{color:var(--red)}
+.terminal .ok{color:var(--green)}
+/* 输入组 */
+.input-group{display:flex;gap:8px;margin-bottom:12px}
+.input-group input,.input-group select{flex:1}
+.input-group textarea{width:100%;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:10px 14px;resize:vertical;outline:none}
+.input-group textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+/* 搜索结果高亮 */
+.search-match{background:var(--accent-dim);color:var(--accent);padding:1px 3px;border-radius:3px}
+/* 备份操作 */
+.backup-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border)}
+.backup-item:hover{background:var(--bg-hover)}
+.backup-item .info{flex:1}
+.backup-item .info .name{font-family:monospace;font-size:11px;color:var(--text)}
+.backup-item .info .meta{font-size:11px;color:var(--text-faint);margin-top:2px}
+</style>
+</head>
+<body>
+
+<!-- toast 容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 登录页 -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-card">
+    <h1>ai-sync 管理面板</h1>
+    <p>请输入管理员 Token (admin_token) 登录</p>
+    <input type="password" id="loginToken" placeholder="admin_token" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()">
+    <input type="text" id="loginUrl" placeholder="API URL (默认同目录 /sync_api.php)" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()" id="loginBtn">登录</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div class="app" id="app">
+  <div class="topbar">
+    <div class="logo">ai-sync v4.3</div>
+    <div class="info">
+      <span id="serverInfo"></span>
+      <button class="logout" onclick="doLogout()">退出</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">仪表盘</div>
+    <div class="tab" data-tab="scopes" onclick="switchTab('scopes')">目录授权</div>
+    <div class="tab" data-tab="tokens" onclick="switchTab('tokens')">Token 管理</div>
+    <div class="tab" data-tab="files" onclick="switchTab('files')">文件浏览</div>
+    <div class="tab" data-tab="backups" onclick="switchTab('backups')">备份管理</div>
+    <div class="tab" data-tab="audit" onclick="switchTab('audit')">审计日志</div>
+    <div class="tab" data-tab="oplog" onclick="switchTab('oplog')">操作日志</div>
+    <div class="tab" data-tab="devtools" onclick="switchTab('devtools')">开发工具</div>
+    <div class="tab" data-tab="codetools" onclick="switchTab('codetools')">代码工具</div>
+    <div class="tab" data-tab="snippets" onclick="switchTab('snippets')">代码片段</div>
+    <div class="tab" data-tab="webhooks" onclick="switchTab('webhooks')">Webhook</div>
+    <div class="tab" data-tab="errorlog" onclick="switchTab('errorlog')">错误日志</div>
+    <div class="tab" data-tab="config" onclick="switchTab('config')">服务器配置</div>
+    <div class="tab" data-tab="package" onclick="switchTab('package')">客户端打包</div>
+    <div class="tab" data-tab="apicontract" onclick="switchTab('apicontract')">API 契约</div>
+  </div>
+
+  <div class="content">
+    <!-- 仪表盘 -->
+    <div class="panel show" id="panel-dashboard">
+      <div class="card">
+        <h2>服务器状态 <label style="font-size:11px;font-weight:400;color:var(--text-dim);display:flex;align-items:center;gap:4px;float:right"><input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" style="width:auto"> 自动刷新</label></h2>
+        <div class="stats-grid" id="healthGrid"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="stats-grid" style="margin-bottom:14px">
+        <div class="stat-box">
+          <div class="label">API 总调用</div>
+          <div class="value" id="metricTotal" style="color:var(--accent)">-</div>
+          <div class="sub" id="metricSince">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">成功操作</div>
+          <div class="value" id="metricOk" style="color:var(--green)">-</div>
+          <div class="sub">无错误</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">错误操作</div>
+          <div class="value" id="metricErr" style="color:var(--red)">-</div>
+          <div class="sub" id="metricErrDetail">-</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">最近活动</div>
+          <div class="value" id="metricLastTs" style="font-size:14px;color:var(--blue)">-</div>
+          <div class="sub" id="metricLastAgo">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>当前身份与能力 <span class="badge">WHOAMI</span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadIdentity()">刷新</button></h2>
+        <div id="identityContent"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="card">
+        <h2>API 调用分布 <span class="badge" id="metricsBadge"></span></h2>
+        <div id="metricsChart"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="card">
+        <h2>管理统计 <span class="badge" id="statsBadge"></span></h2>
+        <div id="statsContent"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="card">
+        <h2>最近文件变更 <span class="badge" id="changesBadge"></span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadRecentChanges()">刷新</button></h2>
+        <div class="toolbar" style="margin-bottom:8px">
+          <select id="changesScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="">全部 Scope</option>
+          </select>
+          <select id="changesLines" onchange="loadRecentChanges()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="50">最近 50 条</option>
+            <option value="100" selected>最近 100 条</option>
+            <option value="200">最近 200 条</option>
+            <option value="500">最近 500 条</option>
+          </select>
+          <div class="spacer"></div>
+          <span id="changesSummary" style="font-size:12px;color:var(--text-dim)"></span>
+        </div>
+        <div id="changesList"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- 目录授权 -->
+    <div class="panel" id="panel-scopes">
+      <div class="card">
+        <h2>添加目录授权</h2>
+        <div class="form-row">
+          <div class="form-field"><label>Scope 名称</label><input id="sa_name" placeholder="如: myproject"></div>
+          <div class="form-field" style="flex:2"><label>工作目录 (绝对路径)</label><input id="sa_workdir" placeholder="/path/to/dir/"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field"><label>备份保留份数</label><input id="sa_backupkeep" type="number" value="5"></div>
+          <div class="form-field"><label>允许执行 PHP</label><select id="sa_exec"><option value="false">否</option><option value="true">是</option></select></div>
+        </div>
+        <button class="btn btn-primary" onclick="addScope()">添加 Scope</button>
+      </div>
+      <div class="card">
+        <h2>已授权目录</h2>
+        <div id="scopesList"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- Token 管理 -->
+    <div class="panel" id="panel-tokens">
+      <div class="card">
+        <h2>添加 Token</h2>
+        <div class="form-row">
+          <div class="form-field" style="flex:2"><label>Token</label><input id="ta_token" placeholder="随机字符串"></div>
+          <div class="form-field"><label>名称</label><input id="ta_name" placeholder="如: myproject-rw"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:2">
+            <label>授权 Scope (逗号分隔)</label>
+            <input id="ta_scopes" placeholder="player,sxtb">
+          </div>
+          <div class="form-field" style="flex:2">
+            <label>权限</label>
+            <div class="checkbox-group" id="ta_perms">
+              <label><input type="checkbox" value="read" checked> read</label>
+              <label><input type="checkbox" value="write" checked> write</label>
+              <label><input type="checkbox" value="delete"> delete</label>
+              <label><input type="checkbox" value="exec"> exec</label>
+              <label><input type="checkbox" value="lint"> lint</label>
+              <label><input type="checkbox" value="backup"> backup</label>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addToken()">添加 Token</button>
+      </div>
+      <div class="card">
+        <h2>已授权 Token <span class="badge" id="tokensBadge"></span></h2>
+        <div id="tokensList"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- 文件浏览 -->
+    <div class="panel" id="panel-files">
+      <div class="card">
+        <h2>文件浏览
+          <select id="fileScope" onchange="FILE_PATH='.';loadFiles()" style="margin-left:12px;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)"></select>
+        </h2>
+        <div class="toolbar">
+          <div class="breadcrumb" id="fileBreadcrumb"></div>
+          <input type="text" id="fileFilter" placeholder="筛选文件..." oninput="filterFiles()" style="height:28px;padding:0 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none;min-width:120px">
+          <div class="spacer"></div>
+          <label style="font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:4px">
+            <input type="checkbox" id="fileRecursive" onchange="loadFiles()" style="width:auto"> 递归
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="showUploadDialog()" title="上传文件">📤 上传</button>
+          <button class="btn btn-sm" onclick="showMkdirDialog()" title="新建目录" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)">📁 新建</button>
+          <button class="icon-btn" onclick="loadFiles()" title="刷新">⟳</button>
+        </div>
+        <div id="filesList"><div class="loading">加载中...</div></div>
+        <div class="toolbar" style="margin-top:8px">
+          <select id="ckAlgo" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto">
+            <option value="md5">md5</option><option value="sha1">sha1</option><option value="sha256">sha256</option>
+          </select>
+          <span style="font-size:12px;color:var(--text-dim)">点文件行的 # 按钮算校验和 (自动复制到剪贴板)</span>
+        </div>
+        <div class="terminal" id="ckOut" style="display:none;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <!-- 备份管理 -->
+    <div class="panel" id="panel-backups">
+      <div class="card">
+        <h2>批量回滚 <span class="badge" style="background:rgba(244,67,54,.15);color:var(--red)">DANGER</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">选择一个时间点，将所有文件回滚到该时间之前最近的备份版本。此操作不可逆，请谨慎使用。</p>
+        <div class="form-row">
+          <div class="form-field">
+            <label>选择 Scope</label>
+            <select id="rbScope" onchange="updateRbPreview()" style="width:100%"></select>
+          </div>
+          <div class="form-field">
+            <label>回滚到时间点</label>
+            <input type="datetime-local" id="rbTime" style="width:100%">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:2">
+            <label>指定文件 (逗号分隔, 留空=全部有备份的文件)</label>
+            <input id="rbPaths" placeholder="如: api.php, config.php (留空=全部)">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" onclick="previewBatchRollback()">预览回滚</button>
+          <button class="btn btn-danger btn-sm" onclick="executeBatchRollback()" id="rbExecBtn" disabled>执行回滚</button>
+        </div>
+        <div id="rbPreview" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>部署批次回滚 <span class="badge" style="background:rgba(33,150,243,.15);color:#2196f3">BATCH</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">按部署批次（同时备份的文件组）回滚。每次部署会在同一秒为所有文件创建备份，此处按 10 秒窗口聚类展示批次，一键恢复整批。</p>
+        <div class="form-row">
+          <div class="form-field">
+            <label>选择 Scope</label>
+            <select id="dbScope" onchange="loadDeployBatches()" style="width:100%"></select>
+          </div>
+          <div class="form-field">
+            <label>最少文件数 (过滤单文件编辑)</label>
+            <input type="number" id="dbMinFiles" value="2" min="1" max="50" style="width:100%">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" onclick="loadDeployBatches()">加载批次</button>
+        </div>
+        <div id="dbList" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>备份管理
+          <select id="backupScope" onchange="loadBackups()" style="margin-left:12px;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)"></select>
+        </h2>
+        <div class="input-group">
+          <input type="text" id="backupPath" placeholder="输入文件路径 (如: client-test/sync.py 或 .)" value="." onkeydown="if(event.key==='Enter')loadBackups()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="loadBackups()">查询备份</button>
+        </div>
+        <div id="backupsList"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- 审计日志 -->
+    <div class="panel" id="panel-audit">
+      <div class="card">
+        <h2>审计日志 <span style="font-size:12px;color:var(--text-dim);font-weight:400">谁 · 何时 · 对什么 · 做了什么 · 结果</span></h2>
+        <div class="toolbar">
+          <input type="text" id="auditSearch" placeholder="搜索: 命令 / 文件 / 动作 / IP / 原因" oninput="filterAudit()" style="flex:1;min-width:150px;height:30px;padding:0 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <select id="auditAction" onchange="filterAudit()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="">全部操作</option>
+          </select>
+          <select id="auditResult" onchange="filterAudit()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="">全部结果</option>
+            <option value="ok">只看成功</option>
+            <option value="err">只看失败/错误</option>
+          </select>
+          <select id="auditRange" onchange="filterAudit()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="">全部时间</option>
+            <option value="today">今天</option>
+            <option value="1h">近 1 小时</option>
+            <option value="24h">近 24 小时</option>
+            <option value="7d">近 7 天</option>
+          </select>
+          <select id="auditLines" onchange="loadAudit()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="50">最近 50 条</option>
+            <option value="100" selected>最近 100 条</option>
+            <option value="200">最近 200 条</option>
+            <option value="500">最近 500 条</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn btn-sm" onclick="exportAudit()">导出筛选结果</button>
+          <button class="btn btn-primary btn-sm" onclick="loadAudit()">刷新</button>
+        </div>
+        <div id="auditSummary" class="aud-summary"></div>
+        <div id="auditList"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- 操作日志 -->
+    <div class="panel" id="panel-oplog">
+      <h2>客户端操作日志 <span class="badge" id="oplogBadge"></span>
+        <button class="btn btn-primary btn-sm" style="float:right" onclick="loadOplogClients()">刷新客户端列表</button>
+      </h2>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <select id="oplogClient" onchange="refreshOplogCommandOptions();loadOplogEntries()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);min-width:200px">
+          <option value="">选择客户端...</option>
+        </select>
+        <select id="oplogCommand" onchange="loadOplogEntries()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);max-width:180px">
+          <option value="">全部命令</option>
+        </select>
+        <input type="text" id="oplogGrep" placeholder="过滤关键词 (命令/参数/主机/IP)" onkeydown="if(event.key==='Enter')loadOplogEntries()" style="flex:1;min-width:150px;height:32px;padding:0 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+        <select id="oplogLimit" onchange="loadOplogEntries()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+          <option value="20">最近 20 条</option>
+          <option value="50">最近 50 条</option>
+          <option value="100" selected>最近 100 条</option>
+          <option value="200">最近 200 条</option>
+          <option value="500">最近 500 条</option>
+          <option value="1000">最近 1000 条</option>
+        </select>
+        <select id="oplogResult" onchange="loadOplogEntries()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+          <option value="">全部结果</option>
+          <option value="ok">只看成功</option>
+          <option value="error">只看失败</option>
+        </select>
+        <select id="oplogRange" onchange="loadOplogEntries()" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+          <option value="">全部时间</option>
+          <option value="today">今天</option>
+          <option value="1h">近 1 小时</option>
+          <option value="24h">近 24 小时</option>
+          <option value="7d">近 7 天</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn btn-sm" onclick="exportOplog()">导出当前结果</button>
+        <button class="btn btn-primary btn-sm" onclick="loadOplogEntries()">查询</button>
+      </div>
+      <div id="oplogSummary" class="aud-summary"></div>
+      <div id="oplogClientList" style="margin-bottom:16px"><div class="loading">加载客户端列表...</div></div>
+      <div id="oplogEntries"><div class="loading">选择客户端后查看操作日志</div></div>
+      <div id="oplogMore" style="text-align:center;margin-top:10px"></div>
+    </div>
+
+    <!-- 开发工具 -->
+    <div class="panel" id="panel-devtools">
+      <div class="card">
+        <h2>远程命令执行 <span class="badge" style="background:rgba(255,152,0,.15);color:var(--yellow)">EXEC</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">在服务器执行 shell 命令 (受 EXEC_ENABLED / EXEC_ALLOW_IPS 限制)。scope 决定工作目录。</p>
+        <div class="input-group">
+          <select id="execScope" onchange="DT_EXEC_OUT=''" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="number" id="execTimeout" value="30" min="1" max="120" placeholder="超时秒" style="width:80px;height:34px;padding:0 8px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+        </div>
+        <div class="input-group">
+          <textarea id="execCmd" rows="2" placeholder="输入命令 (如: ls -la, php -l sync_api.php, grep -r 'TODO' .)" onkeydown="if(event.key==='Enter'&&event.ctrlKey){execCmd()}"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" onclick="execCmd()">执行</button>
+          <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-dim)" onclick="document.getElementById('execCmd').value='';document.getElementById('execOut').innerHTML=''">清空</button>
+        </div>
+        <div class="terminal" id="execOut">$ 等待执行...</div>
+      </div>
+      <div class="card">
+        <h2>执行 PHP 脚本 <span class="badge">PHP_RUN</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">用 php-cli 执行工作目录内的脚本并捕获输出 (比上面的裸 shell 更可控, 限定在 work_dir 内)。</p>
+        <div class="input-group">
+          <select id="phpRunScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="phpRunPath" placeholder="脚本路径 (如: probe.php)" onkeydown="if(event.key==='Enter')phpRun()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <input type="text" id="phpRunArgs" placeholder="参数 (空格分隔, 可选)" style="width:180px;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="phpRun()">运行</button>
+        </div>
+        <div class="terminal" id="phpRunOut">$ 等待执行...</div>
+      </div>
+      <div class="card">
+        <h2>全文搜索 <span class="badge">SEARCH</span></h2>
+        <div class="input-group">
+          <select id="searchScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+        </div>
+        <div class="input-group">
+          <input type="text" id="searchPattern" placeholder="搜索关键词或正则" onkeydown="if(event.key==='Enter')doSearch()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="doSearch()">搜索</button>
+        </div>
+        <div id="searchResults" style="font-size:13px;line-height:1.8"></div>
+      </div>
+    </div>
+
+    <!-- 代码工具 -->
+    <div class="panel" id="panel-codetools">
+      <div class="card">
+        <h2>TODO/FIXME 扫描 <span class="badge">TODO</span></h2>
+        <div class="input-group">
+          <select id="todoScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="todoPath" placeholder="扫描路径 (留空=根目录)" value="." onkeydown="if(event.key==='Enter')scanTodo()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="scanTodo()">扫描</button>
+        </div>
+        <div id="todoResults" style="font-size:13px;line-height:1.8"></div>
+      </div>
+      <div class="card">
+        <h2>代码统计 <span class="badge">STATS</span></h2>
+        <div class="input-group">
+          <select id="statsScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="statsPath" placeholder="统计路径" value="." onkeydown="if(event.key==='Enter')codeStats()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="codeStats()">统计</button>
+        </div>
+        <div id="statsResults" style="font-size:13px"></div>
+      </div>
+      <div class="card">
+        <h2>语法检查 (Lint) <span class="badge">LINT</span></h2>
+        <div class="input-group">
+          <select id="lintScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="lintPath" placeholder="文件路径 (如: api.php)" onkeydown="if(event.key==='Enter')lintFile()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="lintFile()">检查</button>
+        </div>
+        <div id="lintResults" style="font-size:13px;line-height:1.8"></div>
+      </div>
+      <div class="card">
+        <h2>批量语法检查 <span class="badge">LINT_BATCH</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">对整个目录做语法预检 (比单个文件逐个检查快一个量级)。</p>
+        <div class="input-group">
+          <select id="lbScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="lbPath" placeholder="目录路径 (留空=根目录)" value="." onkeydown="if(event.key==='Enter')lintBatch()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <input type="text" id="lbPattern" placeholder="文件名过滤 (如 *.php)" style="width:150px;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-primary btn-sm" onclick="lintBatch()">批量检查</button>
+        </div>
+        <div id="lbResults" style="font-size:13px;line-height:1.8"></div>
+      </div>
+      <div class="card">
+        <h2>代码格式化 <span class="badge">FORMAT</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">格式化源码 (php/js/css/json…)。默认只预览不写回, 勾选「写回文件」才真正落盘。</p>
+        <div class="input-group">
+          <select id="fmtScope" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);width:auto"></select>
+          <input type="text" id="fmtPath" placeholder="文件路径 (如: api.php)" onkeydown="if(event.key==='Enter')formatFile(false)" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <label style="font-size:12px;color:var(--text-dim);display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="fmtWrite" style="width:auto"> 写回文件</label>
+          <button class="btn btn-primary btn-sm" onclick="formatFile(document.getElementById('fmtWrite').checked)">格式化</button>
+        </div>
+        <div id="fmtResults" style="font-size:13px;line-height:1.8"></div>
+      </div>
+      <div class="card">
+        <h2>API 文档生成 <span class="badge">DOC</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">自动解析服务器端所有 action 函数及注释，生成 API 参考文档。</p>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm" onclick="genApiDoc('json')">JSON 格式</button>
+          <button class="btn btn-sm" onclick="genApiDoc('md')" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)">Markdown 格式</button>
+          <button class="btn btn-sm" onclick="genApiDoc('html')" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)">HTML 格式</button>
+        </div>
+        <div id="docResults" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- 代码片段 -->
+    <div class="panel" id="panel-snippets">
+      <div class="card">
+        <h2>保存代码片段 <span class="badge">SNIPPET</span></h2>
+        <div class="form-row">
+          <div class="form-field"><label>片段名称</label><input id="sn_name" placeholder="如: db_connect"></div>
+          <div class="form-field"><label>语言</label><select id="sn_lang"><option value="plain">Plain</option><option value="php">PHP</option><option value="javascript">JavaScript</option><option value="python">Python</option><option value="bash">Bash</option><option value="sql">SQL</option><option value="html">HTML</option><option value="css">CSS</option></select></div>
+          <div class="form-field"><label>标签 (逗号分隔)</label><input id="sn_tags" placeholder="如: util, db"></div>
+        </div>
+        <div class="form-field"><label>描述</label><input id="sn_desc" placeholder="简短描述"></div>
+        <div class="form-field"><label>代码内容</label><textarea id="sn_content" rows="6" placeholder="粘贴代码..."></textarea>
+        <button class="btn btn-primary" onclick="saveSnippet()">保存片段</button>
+      </div>
+      </div>
+      <div class="card">
+        <h2>已保存片段 <span class="badge" id="snippetBadge"></span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadSnippets()">刷新</button></h2>
+        <div class="input-group" style="margin-bottom:12px">
+          <input type="text" id="snFilter" placeholder="按名称/标签/语言过滤..." onkeydown="if(event.key==='Enter')loadSnippets()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <button class="btn btn-sm" onclick="loadSnippets()" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)">搜索</button>
+        </div>
+        <div id="snippetsList"><div class="loading">点击刷新查看</div></div>
+      </div>
+    </div>
+
+    <!-- Webhook -->
+    <div class="panel" id="panel-webhooks">
+      <div class="card">
+        <h2>注册 Webhook <span class="badge">WEBHOOK</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">文件上传/删除时自动通知外部服务。仅支持 http/https 公网地址 (防 SSRF)。</p>
+        <div class="form-row">
+          <div class="form-field" style="flex:2"><label>回调 URL</label><input id="wh_url" placeholder="https://WEBHOOK_URL"></div>
+          <div class="form-field"><label>触发事件</label><select id="wh_events"><option value="upload,delete">上传+删除</option><option value="upload">仅上传</option><option value="delete">仅删除</option></select></div>
+        </div>
+        <div class="form-field"><label>Secret (HMAC 签名密钥, 可选)</label><input id="wh_secret" placeholder="webhook_secret"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-primary" onclick="addWebhook()">注册</button>
+          <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="testWebhook('')">🧪 先测试可达性</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>已注册 Webhook <span class="badge" id="webhookBadge"></span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadWebhooks()">刷新</button></h2>
+        <div id="webhooksList"><div class="loading">点击刷新查看</div></div>
+        <div class="terminal" id="webhookTestOut" style="margin-top:10px;display:none;white-space:pre-wrap">测试结果会显示在这里</div>
+      </div>
+    </div>
+
+    <!-- API 契约 (NEW-R12: 服务端 help 自描述能力的浏览入口) -->
+    <div class="panel" id="panel-apicontract">
+      <div class="card">
+        <h2>API 契约浏览器 <span class="badge">HELP</span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadApiContracts()">刷新</button></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">直接读取服务端 <code>help</code> 自描述数据 — 所见即服务端真实契约, 不会与实现脱节。</p>
+        <div class="toolbar">
+          <input type="text" id="acFilter" placeholder="搜索 action / 描述..." oninput="filterApiContracts()" onkeydown="if(event.key==='Enter')filterApiContracts()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <div class="spacer"></div>
+          <span id="acBadge" class="badge"></span>
+        </div>
+        <div id="acList"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="card">
+        <h2>契约详情 <span class="badge" id="acDetailBadge"></span></h2>
+        <div id="acDetail"><div class="loading">点击上方任一 action 查看完整契约</div></div>
+      </div>
+    </div>
+
+    <!-- 错误日志 -->
+    <div class="panel" id="panel-errorlog">
+      <div class="card">
+        <h2>错误日志查看 <span class="badge">LOG</span></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">自动发现服务器上的日志文件 (PHP error log / Nginx / audit log / 自定义 *.log)，支持 grep 过滤和按时间筛选。</p>
+        <div class="toolbar">
+          <select id="logName" onchange="loadErrorLog()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="">选择日志...</option>
+          </select>
+          <input type="text" id="logGrep" placeholder="grep 关键词" onkeydown="if(event.key==='Enter')loadErrorLog()" style="flex:1;height:34px;padding:0 12px;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);outline:none">
+          <select id="logLines" onchange="loadErrorLog()" style="font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+            <option value="50">50 行</option>
+            <option value="100" selected>100 行</option>
+            <option value="200">200 行</option>
+            <option value="500">500 行</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadErrorLog()">查看</button>
+        </div>
+        <div id="errorLogResults" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- 服务器配置 -->
+    <div class="panel" id="panel-config">
+      <div class="card">
+        <h2>服务器配置 (脱敏) <button class="btn btn-primary btn-sm" style="float:right" onclick="reloadConfig()">重载配置</button></h2>
+        <pre id="configContent" style="font-size:12px;overflow-x:auto;color:var(--text-dim);line-height:1.6">加载中...</pre>
+      </div>
+    </div>
+
+    <!-- 客户端打包 -->
+    <div class="panel" id="panel-package">
+      <div class="card">
+        <h2>一键打包客户端 <span class="badge">发给新 AI / 新设备</span></h2>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">选择一个 Token 和 Scope，生成包含 sync.py + sync.conf + README + start.sh 的 zip 包。新 AI 或新设备解压后即可使用，无需手动配置。</p>
+        <div style="margin:0 0 16px;padding:10px 12px;border-radius:8px;background:rgba(240,82,82,.08);border:1px solid rgba(240,82,82,.35);color:var(--red);font-size:12.5px;line-height:1.6">
+          ⚠ 包内 <code>sync.conf</code> 含明文 Token：<b>谁拿到 zip 或下载链接，就拥有该 Token 的全部权限</b>。建议为打包单独建一个“只读 / 最小权限” Token，不要把包发到公开群或代码仓库。
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>选择 Token</label>
+            <select id="pkg_token" onchange="updatePkgScopes()"></select>
+          </div>
+          <div class="form-field">
+            <label>选择 Scope</label>
+            <select id="pkg_scope"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field" style="flex:1.2">
+            <label>说明文档模式 <span style="color:var(--yellow)">发给 AI 前选对，AI 就用对应流程操作</span></label>
+            <select id="pkg_doc_mode">
+              <option value="two_way">方法一：双向同步（推荐，最省心 —— 本地改推上去，服务器改拉回来）</option>
+              <option value="pull_edit_push">方法二：拉-改-推（保守模式 —— 先拉最新 → 修改 → 验证 → 推上去）</option>
+              <option value="brand_new">方法三：全新开发（服务器无代码 —— AI 直接全新写一套脚本/项目）</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>本地工作目录 <span style="color:var(--text-dim)">(AI 写代码的目录，留空=/workspace/{scope})</span></label>
+            <input type="text" id="pkg_local_dir" placeholder="例如: /workspace/works 或 /Users/ai/code/works">
+          </div>
+          <div class="form-field">
+            <label>远程子目录 <span style="color:var(--text-dim)">(scope 下的子目录，留空=scope 根)</span></label>
+            <input type="text" id="pkg_remote_subdir" placeholder="例如: public_html / api / 留空=根目录">
+          </div>
+        </div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-field" style="flex:0 0 auto">
+            <label style="visibility:hidden">.</label>
+            <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="applyPkgPreset('trae')">🤖 TRAE AI 预设</button>
+          </div>
+          <div class="form-field" style="flex:0 0 auto">
+            <label style="visibility:hidden">.</label>
+            <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="applyPkgPreset('dev')">💻 开发者预设</button>
+          </div>
+          <div class="form-field" style="flex:0 0 auto">
+            <label style="visibility:hidden">.</label>
+            <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="applyPkgPreset('ci')">🔄 CI/CD 预设</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="generatePackage()" id="pkgBtn">生成客户端包 + AI 说明文档</button>
+          <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="previewDocOnly()">👁 仅预览 AI 文档 (不打包)</button>
+        </div>
+        <div id="pkgResult" style="margin-top:20px"></div>
+      </div>
+      <div class="card">
+        <h2>已生成下载包 <span class="badge" id="pkgListBadge"></span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadPackageList()">刷新</button></h2>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:12px">下载链接含完整 token, 任何人有链接即可访问。用完请及时删除。</p>
+        <div class="toolbar" style="margin-bottom:8px">
+          <span style="font-size:12px;color:var(--text-dim)">批量操作:</span>
+          <button class="btn btn-danger btn-sm" onclick="cleanupOldPackages()" title="删除7天前的包">🧹 清理过期包</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAllPackages()">🗑 全部删除</button>
+          <div class="spacer"></div>
+          <span id="pkgTotalSize" style="font-size:12px;color:var(--text-dim)"></span>
+        </div>
+        <div id="pkgList"><div class="loading">点击刷新查看</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 全局状态 ==========
+let API_URL = '';
+let ADMIN_TOKEN = '';
+let SCOPES = []; // 缓存 scope 列表
+let FILE_PATH = '.'; // 文件浏览当前路径
+let AUDIT_RAW = []; // 审计日志原始数据 (用于筛选)
+
+// ========== toast 提示 ==========
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }, 3000);
+}
+
+// ========== 工具函数 ==========
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function permTag(p) {
+  return `<span class="perm-tag perm-${esc(p)}">${esc(p)}</span>`;
+}
+function permTags(perms) {
+  return (perms||[]).map(permTag).join('');
+}
+function fmtSize(bytes) {
+  if (bytes == null) return '?';
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + 'KB';
+  return (bytes/1048576).toFixed(1) + 'MB';
+}
+
+// ========== 通用中文化 / 时间筛选 (仪表盘、审计、操作日志共用) ==========
+const ERROR_CN = {
+  1001:'未授权 (Token 无效或缺失)', 1002:'无权限 (权限位不足)', 1003:'请求被限流',
+  1004:'路径非法 (越界/绝对路径/..)', 1005:'文件或目录不存在', 1006:'文件超过大小上限',
+  1007:'MD5 校验失败', 1008:'写入失败 (权限/磁盘)', 1009:'exec 未开启',
+  1010:'备份不存在', 1011:'参数缺失或非法', 1012:'分片缺失', 1099:'服务器内部错误'
+};
+const CAP_CN = {
+  batch_deploy:'批量部署', chunked_upload:'分块上传', php_run:'执行 PHP',
+  webhook_test:'Webhook 测试', sync_check:'同步检查', recent_changes:'最近变更',
+  error_log:'错误日志', backup:'备份/回滚'
+};
+function errorCN(code) { return ERROR_CN[code] || ('错误码 ' + code); }
+function capCN(c) { return CAP_CN[c] || c; }
+
+// 解析服务端时间 "YYYY-MM-DD HH:MM:SS" (不依赖浏览器对空格格式的兼容性)
+function parseTs(ts) {
+  if (!ts) return null;
+  const d = new Date(String(ts).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function tsInRange(ts, range) {
+  if (!range || range === 'all') return true;
+  if (range === 'today') return String(ts || '').slice(0, 10) === todayStr();
+  const d = parseTs(ts);
+  if (!d) return false;
+  const age = Date.now() - d.getTime();
+  if (range === '1h') return age <= 3600e3;
+  if (range === '24h') return age <= 86400e3;
+  if (range === '7d') return age <= 7 * 86400e3;
+  return true;
+}
+function friendlyTs(ts) {
+  if (!ts) return '-';
+  const d = parseTs(ts);
+  if (!d) return String(ts);
+  const today = todayStr();
+  const s = String(ts);
+  if (s.slice(0, 10) === today) return s.slice(11, 19);
+  return s.slice(5, 16);   // MM-DD HH:MM
+}
+
+// ========== API 调用 ==========
+// OPT-R12: 加超时(AbortController) + 网络错误兜底。
+//   旧版裸 fetch: 服务端不响应时按钮一直转圈、界面无任何反馈, 无法区分"慢"和"挂了"。
+//   现在统一返回 {ok:false,error:'network_error',message}, 调用方原有的 r.ok 判断不用改。
+async function apiCall(action, extra = {}) {
+  const timeoutMs = extra._timeout || 30000;
+  const silent = extra._silent;
+  delete extra._timeout; delete extra._silent;
+  const payload = { action, token: ADMIN_TOKEN, ...extra };
+  let r;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      r = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal
+      });
+    } finally { clearTimeout(timer); }
+  } catch (e) {
+    const msg = (e && e.name === 'AbortError')
+      ? `请求超时 (${Math.round(timeoutMs / 1000)}s): ${action}`
+      : `网络错误: ${(e && e.message) || e}`;
+    if (!silent) toast(msg, 'error');
+    return { ok: false, code: -1, error: 'network_error', message: msg };
+  }
+  try {
+    return await r.json();
+  } catch (e) {
+    const msg = `响应不是合法 JSON (HTTP ${r.status}): ${action}`;
+    if (!silent) toast(msg, 'error');
+    return { ok: false, code: -2, error: 'bad_json', message: msg };
+  }
+}
+
+// ========== 登录 ==========
+async function doLogin() {
+  ADMIN_TOKEN = document.getElementById('loginToken').value.trim();
+  API_URL = document.getElementById('loginUrl').value.trim() || (location.origin + location.pathname.replace(/\/[^/]*$/, '/') + 'sync_api.php');
+  if (!ADMIN_TOKEN) { document.getElementById('loginError').textContent = '请输入 admin_token'; return; }
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loginError').textContent = '验证中...';
+  try {
+    const r = await apiCall('ping');
+    if (r.ok && r.is_admin) {
+      localStorage.setItem('ai_sync_admin_token', ADMIN_TOKEN);
+      localStorage.setItem('ai_sync_api_url', API_URL);
+      document.getElementById('loginError').textContent = ''; // FIX-R12: 清掉"验证中...", 否则登出后残留
+      showApp(r);
+    } else if (r.ok && !r.is_admin) {
+      document.getElementById('loginError').textContent = '该 Token 不是管理员 Token (is_admin=false)';
+    } else {
+      document.getElementById('loginError').textContent = r.message || r.error || '登录失败';
+    }
+  } catch(e) {
+    document.getElementById('loginError').textContent = '网络错误: ' + e.message;
+  }
+  document.getElementById('loginBtn').disabled = false;
+}
+
+function doLogout() {
+  localStorage.removeItem('ai_sync_admin_token');
+  localStorage.removeItem('ai_sync_api_url');
+  location.reload();
+}
+
+function showApp(pingResult) {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('serverInfo').textContent =
+    `v${pingResult.version}  scope=${esc(pingResult.scope||'-')}  ${pingResult.available_scopes ? '| 可访问: ' + pingResult.available_scopes.join(', ') : ''}`;
+  loadDashboard();
+}
+
+// ========== 标签页切换 ==========
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('show', p.id === 'panel-' + name));
+  if (name === 'dashboard') { loadScopeSelectors(); loadDashboard(); }
+  if (name === 'scopes') loadScopes();
+  if (name === 'tokens') loadTokens();
+  if (name === 'files') { loadScopeSelectors(); loadFiles(); }
+  if (name === 'backups') { loadScopeSelectors(); loadBackups(); }
+  if (name === 'audit') loadAudit();
+  if (name === 'oplog') loadOplog();
+  if (name === 'devtools') { loadScopeSelectors(); }
+  if (name === 'codetools') { loadScopeSelectors(); }
+  if (name === 'snippets') loadSnippets();
+  if (name === 'webhooks') loadWebhooks();
+  if (name === 'errorlog') loadErrorLogList();
+  if (name === 'config') loadConfig();
+  if (name === 'package') loadPackage();
+  if (name === 'apicontract') { if (!AC_ACTIONS.length) loadApiContracts(); }
+}
+
+// ========== 仪表盘 ==========
+// 🆕 OPT-speed-20261022: 仪表盘各卡片并行加载并逐卡片渲染 — 不等最慢接口
+//   旧版 Promise.all 被 admin_stats(全量扫盘) 拖慢整页; 现在哪个接口先回就先渲染哪张卡片
+async function loadDashboard() {
+  loadHealthCard();
+  loadIdentity();
+  loadMetricsCard();
+  loadStatsCard();
+  loadChangesCard();
+}
+
+async function loadHealthCard() {
+  try {
+    const health = await apiCall('health');
+    if (health.ok) {
+      document.getElementById('healthGrid').innerHTML = `
+        <div class="stat-box"><div class="label">PHP 版本</div><div class="value" style="font-size:16px">${esc(health.php_version||'?')}</div></div>
+        <div class="stat-box"><div class="label">API 版本</div><div class="value" style="font-size:16px">v${esc(health.version||'?')}</div></div>
+        <div class="stat-box"><div class="label">磁盘可用</div><div class="value">${health.disk_free_mb!=null?health.disk_free_mb+'MB':'?'}</div><div class="sub">/ ${health.disk_total_mb!=null?health.disk_total_mb+'MB':'?'}</div></div>
+        <div class="stat-box"><div class="label">工作目录可写</div><div class="value">${health.work_dir_writable?'<span style="color:var(--green)">是</span>':'<span style="color:var(--red)">否</span>'}</div></div>
+      `;
+    }
+  } catch(e) {
+    document.getElementById('healthGrid').innerHTML = `<div class="loading">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadMetricsCard() {
+  try {
+    const metrics = await apiCall('metrics');
+    if (!metrics.ok) return;
+    const total = metrics.total || 0;
+    const errTotal = Object.values(metrics.errors || {}).reduce((a, b) => a + b, 0);
+    const okTotal = total - errTotal;
+    document.getElementById('metricTotal').textContent = total;
+    document.getElementById('metricOk').textContent = okTotal;
+    document.getElementById('metricErr').textContent = errTotal;
+    const errEntries = Object.entries(metrics.errors || {});
+    document.getElementById('metricErrDetail').innerHTML = errEntries.length
+      ? errEntries.map(([k,v]) => `<span title="${esc(errorCN(k))}">${esc(errorCN(k).replace(/\s*\(.*\)$/,''))}: <b>${v}</b></span>`).join(' · ')
+      : '无错误';
+    if (metrics.since) {
+      document.getElementById('metricSince').textContent = '自 ' + new Date(metrics.since * 1000).toLocaleString('zh-CN', { hour12: false });
+    }
+    if (metrics.last_ts) {
+      const lastDate = new Date(metrics.last_ts * 1000);
+      document.getElementById('metricLastTs').textContent = lastDate.toLocaleTimeString('zh-CN', { hour12: false });
+      const agoSec = Math.floor(Date.now() / 1000) - metrics.last_ts;
+      const agoStr = agoSec < 60 ? agoSec + ' 秒前' : agoSec < 3600 ? Math.floor(agoSec/60) + ' 分钟前' : agoSec < 86400 ? Math.floor(agoSec/3600) + ' 小时前' : Math.floor(agoSec/86400) + ' 天前';
+      document.getElementById('metricLastAgo').textContent = agoStr;
+    } else {
+      document.getElementById('metricLastTs').textContent = '-';
+      document.getElementById('metricLastAgo').textContent = '-';
+    }
+    // 渲染 API 调用分布 (水平条形图)
+    const actions = Object.entries(metrics.actions || {}).sort((a, b) => b[1] - a[1]);
+    document.getElementById('metricsBadge').textContent = actions.length + ' 种操作';
+    if (!actions.length) {
+      document.getElementById('metricsChart').innerHTML = '<div class="loading">暂无数据</div>';
+    } else {
+      const maxVal = actions[0][1];
+      const colors = ['var(--accent)', 'var(--blue)', 'var(--green)', 'var(--yellow)', 'var(--red)', '#ce93d8', '#4dd0e1', '#ff8a65'];
+      let html = '<div style="display:flex;flex-direction:column;gap:6px">';
+      for (let i = 0; i < actions.length; i++) {
+        const [act, cnt] = actions[i];
+        const pct = Math.max(2, Math.round(cnt / maxVal * 100));
+        const color = colors[i % colors.length];
+        html += `<div style="display:flex;align-items:center;gap:8px">
+          <span style="min-width:132px;font-size:12px;color:var(--text-dim)" title="${esc(act)}">${esc(auditActionCN(act))}<span style="font-family:monospace;font-size:10px;color:var(--text-faint);margin-left:4px">${esc(act)}</span></span>
+          <div style="flex:1;height:20px;background:var(--bg-hover);border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:10px;font-weight:600;color:#fff;min-width:30px">${cnt}</div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+      document.getElementById('metricsChart').innerHTML = html;
+    }
+  } catch(e) {}
+}
+
+async function loadChangesCard() {
+  try {
+    const changes = await apiCall('recent_changes', { lines: 100 });
+    if (changes.ok) {
+      renderRecentChanges(changes);
+    } else {
+      document.getElementById('changesList').innerHTML = '<div class="loading">暂无变更记录</div>';
+      document.getElementById('changesBadge').textContent = '';
+      document.getElementById('changesSummary').textContent = '';
+    }
+  } catch(e) {}
+}
+
+async function loadStatsCard() {
+  try {
+    const stats = await apiCall('admin_stats');
+    if (stats.ok) {
+      // FIX-R12: scope_count/token_count 在 totals 子对象里, 读顶层会得到 undefined
+      const T = stats.totals || {};
+      const sc = T.scope_count != null ? T.scope_count : (stats.scopes || []).length;
+      const tc = T.token_count != null ? T.token_count : '?';
+      document.getElementById('statsBadge').textContent = `${sc} scopes / ${tc} tokens`;
+      let html = '<table><thead><tr><th>Scope</th><th>工作目录</th><th>文件数</th><th>磁盘占用</th><th>备份数</th></tr></thead><tbody>';
+      for (const sc of (stats.scopes||[])) {
+        html += `<tr><td><strong>${esc(sc.name)}</strong></td><td style="font-family:monospace;font-size:11px;color:var(--text-dim)">${esc(sc.work_dir)}</td><td>${sc.file_count!=null?sc.file_count:'?'}</td><td>${sc.size_mb!=null?sc.size_mb+'MB':'?'}</td><td>${sc.backup_count!=null?sc.backup_count:'?'}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById('statsContent').innerHTML = html;
+    } else {
+      document.getElementById('statsContent').innerHTML = `<div class="loading">⚠ ${esc(stats.message||stats.error||'加载失败')}</div>`;
+    }
+  } catch(e) {}
+}
+
+// NEW-R12: whoami — 服务端专门为调用方准备的能力清单与推荐工作流, 面板此前没暴露
+async function loadIdentity() {
+  const box = document.getElementById('identityContent');
+  if (!box) return;
+  box.innerHTML = '<div class="loading">加载中...</div>';
+  const r = await apiCall('whoami');
+  if (!r.ok) { box.innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const caps = r.capabilities || {};
+  const capOn = Object.entries(caps).filter(([, v]) => v).map(([k]) => k);
+  const capOff = Object.entries(caps).filter(([, v]) => !v).map(([k]) => k);
+  const rl = r.rate_limit || {};
+  let html = '<div class="stats-grid">';
+  html += `<div class="stat-box"><div class="label">身份</div><div class="value" style="font-size:16px">${esc(r.token_name||'-')}</div><div class="sub">scope=${esc(r.scope||'-')} ${r.is_admin?'· 管理员':'· 非管理员'}</div></div>`;
+  html += `<div class="stat-box"><div class="label">权限位</div><div class="value" style="font-size:13px">${permTags(r.permissions)}</div><div class="sub">可访问 ${(r.available_scopes||[]).length} 个 scope</div></div>`;
+  html += `<div class="stat-box"><div class="label">单文件上限</div><div class="value">${fmtSize(r.max_size)}</div><div class="sub">分块上限 ${fmtSize(r.max_chunked_size)}</div></div>`;
+  html += `<div class="stat-box"><div class="label">限流</div><div class="value" style="font-size:13px">${esc(rl.per_token_per_minute ?? '-')}/分钟</div><div class="sub">${esc(rl.per_ip_per_second ?? '-')}/秒 per IP</div></div>`;
+  html += '</div>';
+  html += `<div style="margin-top:10px;font-size:12px;color:var(--text-dim)">
+      <div>工作目录: <code>${esc(r.work_dir||'-')}</code> · 服务端时区: ${esc(r.server_timezone||'-')} · API: ${esc(r.api_version||'-')}</div>
+      <div style="margin-top:4px">已开启能力: ${capOn.length ? capOn.map(c=>`<span class="perm-tag" style="background:var(--green)22;color:var(--green);margin-right:4px" title="${esc(c)}">${esc(capCN(c))}</span>`).join('') : '<span style="color:var(--text-dim)">无</span>'}</div>
+      ${capOff.length ? `<div style="margin-top:4px">未开启: ${capOff.map(c=>`<span class="perm-tag" style="background:var(--red)22;color:var(--red);margin-right:4px" title="${esc(c)}">${esc(capCN(c))}</span>`).join('')}</div>` : ''}
+    </div>`;
+  if (r.workflow_hint) {
+    html += `<div style="margin-top:10px;padding:10px;border-radius:8px;background:var(--bg);border:1px solid var(--border);font-size:12px;white-space:pre-wrap"><strong style="color:var(--accent)">推荐工作流</strong>\n${esc(String(r.workflow_hint))}</div>`;
+  }
+  box.innerHTML = html;
+}
+
+function renderRecentChanges(r) {
+  const changes = r.changes || [];
+  document.getElementById('changesBadge').textContent = changes.length + ' 条';
+  document.getElementById('changesSummary').textContent = r.summary || '';
+  if (!changes.length) {
+    document.getElementById('changesList').innerHTML = '<div class="loading">暂无变更记录</div>';
+    return;
+  }
+  const actionColors = {
+    upload: 'var(--green)', upload_batch: 'var(--green)', chunked_upload: 'var(--green)',
+    delete: 'var(--red)', rename: 'var(--blue)', copy: 'var(--yellow)',
+    mkdir: 'var(--accent)', backup_rb: '#ce93d8', php_run: 'var(--yellow)'
+  };
+  let html = '<div style="max-height:400px;overflow-y:auto">';
+  for (const c of changes.slice(0, 100)) {
+    const color = actionColors[c.action] || 'var(--text-dim)';
+    const ts = friendlyTs(c.ts);
+    const sz = c.size != null ? ' · ' + fmtSize(c.size) : '';
+    html += `<div class="log-entry"><span class="ts" title="${esc(c.ts||'')}">${esc(ts)}</span><span class="action" style="color:${color}" title="${esc(c.action||'')}">${esc(auditActionCN(c.action))}</span><span class="code ${c.ok?'':'err'}" title="${esc(c.ok?'成功':errorCN(c.code))}">${c.ok?'成功':esc(c.code)}</span><span class="path">${esc(c.path||'')}${sz}${c.ip?' · IP:'+esc(c.ip):''}</span></div>`;
+  }
+  html += '</div>';
+  document.getElementById('changesList').innerHTML = html;
+}
+
+async function loadRecentChanges() {
+  const scope = document.getElementById('changesScope')?.value || '';
+  const lines = parseInt(document.getElementById('changesLines')?.value || 100);
+  try {
+    const r = await apiCall('recent_changes', { lines, scope: scope || undefined });
+    if (r.ok) renderRecentChanges(r);
+    else document.getElementById('changesList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`;
+  } catch(e) {
+    document.getElementById('changesList').innerHTML = `<div class="loading">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+let _autoRefreshTimer = null;
+function toggleAutoRefresh() {
+  if (_autoRefreshTimer) { clearInterval(_autoRefreshTimer); _autoRefreshTimer = null; }
+  if (document.getElementById('autoRefresh')?.checked) {
+    _autoRefreshTimer = setInterval(() => {
+      if (document.querySelector('.tab.active')?.dataset.tab === 'dashboard') loadDashboard();
+    }, 30000);
+  }
+}
+
+// ========== 目录授权 ==========
+async function loadScopes() {
+  const r = await apiCall('scopes_list');
+  SCOPES = r.ok ? (r.scopes||[]) : [];
+  if (!r.ok) { document.getElementById('scopesList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  let html = '<table><thead><tr><th>Scope</th><th>工作目录</th><th>文件数</th><th>备份数</th><th>操作</th></tr></thead><tbody>';
+  for (const sc of SCOPES) {
+    html += `<tr><td><strong>${esc(sc.name)}</strong></td><td style="font-family:monospace;font-size:11px">${esc(sc.work_dir)}</td><td>${sc.file_count!=null?sc.file_count:'?'}</td><td>${sc.backup_count!=null?sc.backup_count:'?'}</td><td><button class="btn btn-danger btn-sm" onclick="delScope('${esc(sc.name)}')">删除</button></td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('scopesList').innerHTML = html;
+}
+
+async function addScope() {
+  const name = document.getElementById('sa_name').value.trim();
+  const work_dir = document.getElementById('sa_workdir').value.trim();
+  const backup_keep = parseInt(document.getElementById('sa_backupkeep').value) || 5;
+  const exec_enabled = document.getElementById('sa_exec').value === 'true';
+  if (!name || !work_dir) { alert('请填写名称和路径'); return; }
+  const r = await apiCall('scope_add', { name, work_dir, backup_keep, exec_enabled });
+  if (r.ok) { document.getElementById('sa_name').value=''; document.getElementById('sa_workdir').value=''; loadScopes(); }
+  else alert('失败: ' + (r.message||r.error));
+}
+
+async function delScope(name) {
+  if (!confirm(`确认删除 scope "${name}"？\n注意: 只删除授权, 不删除服务器文件。`)) return;
+  const r = await apiCall('scope_delete', { name });
+  if (r.ok) loadScopes(); else alert('失败: ' + (r.message||r.error));
+}
+
+// ========== Token 管理 ==========
+async function loadTokens() {
+  const r = await apiCall('tokens_list');
+  if (!r.ok) { document.getElementById('tokensList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  document.getElementById('tokensBadge').textContent = r.tokens ? r.tokens.length + ' 个' : '';
+  let html = '<table><thead><tr><th>Token</th><th>名称</th><th>Scopes</th><th>权限</th><th>操作</th></tr></thead><tbody>';
+  for (const tk of (r.tokens||[])) {
+    html += `<tr><td class="token-cell">${esc(tk.token)}</td><td>${esc(tk.name)}</td><td>${(tk.scopes||[]).map(s=>`<code>${esc(s)}</code>`).join(', ')}</td><td>${permTags(tk.permissions)}</td><td><button class="btn btn-danger btn-sm" onclick="delToken('${esc(tk.token)}')">删除</button></td></tr>`;
+  }
+  if (r.admin_token_present) {
+    html += `<tr style="background:var(--accent-dim)"><td colspan="5" style="text-align:center;color:var(--accent);font-size:12px">admin_token 已配置 (拥有全部权限)</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('tokensList').innerHTML = html;
+  // 权限 checkbox 样式
+  document.querySelectorAll('#ta_perms label').forEach(l => {
+    l.classList.toggle('checked', l.querySelector('input').checked);
+  });
+}
+
+document.addEventListener('change', e => {
+  if (e.target.closest('#ta_perms')) {
+    e.target.closest('label').classList.toggle('checked', e.target.checked);
+  }
+});
+
+async function addToken() {
+  const token = document.getElementById('ta_token').value.trim();
+  const name = document.getElementById('ta_name').value.trim();
+  const scopes = document.getElementById('ta_scopes').value.trim().split(',').map(s=>s.trim()).filter(Boolean);
+  const perms = [...document.querySelectorAll('#ta_perms input:checked')].map(c=>c.value);
+  if (!token || !name || !scopes.length) { alert('请填写 Token、名称和至少一个 Scope'); return; }
+  const r = await apiCall('token_add', { new_token: token, name, scopes, permissions: perms });
+  if (r.ok) {
+    document.getElementById('ta_token').value=''; document.getElementById('ta_name').value=''; document.getElementById('ta_scopes').value='';
+    loadTokens();
+  } else alert('失败: ' + (r.message||r.error));
+}
+
+async function delToken(token) {
+  if (!confirm(`确认删除 Token ${token.substring(0,8)}***？`)) return;
+  const r = await apiCall('token_delete', { target_token: token });
+  if (r.ok) loadTokens(); else alert('失败: ' + (r.message||r.error));
+}
+
+// ========== 文件浏览 ==========
+async function loadScopeSelectors() {
+  if (!SCOPES.length) {
+    const r = await apiCall('scopes_list');
+    if (r.ok) SCOPES = r.scopes || [];
+  }
+  for (const id of ['fileScope', 'backupScope', 'execScope', 'searchScope', 'todoScope', 'statsScope', 'lintScope', 'rbScope', 'changesScope', 'dbScope', 'lbScope', 'fmtScope', 'phpRunScope', 'ckScope']) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    const cur = sel.value;
+    if (id === 'changesScope') {
+      sel.innerHTML = '<option value="">全部 Scope</option>' + SCOPES.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+    } else {
+      sel.innerHTML = SCOPES.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+    }
+    if (cur) sel.value = cur;
+  }
+}
+
+async function loadFiles() {
+  const scope = document.getElementById('fileScope').value;
+  if (!scope) { document.getElementById('filesList').innerHTML = '<div class="loading">无可用 scope</div>'; return; }
+  const recursive = document.getElementById('fileRecursive').checked;
+  const r = await apiCall('list', { scope, path: FILE_PATH, recursive, limit: 500 });
+  if (!r.ok) { document.getElementById('filesList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  // 面包屑
+  let bc = `<a onclick="FILE_PATH='.';loadFiles()">根目录</a>`;
+  if (FILE_PATH !== '.') {
+    const parts = FILE_PATH.split('/').filter(Boolean);
+    let acc = '';
+    for (const p of parts) {
+      acc = acc ? acc + '/' + p : p;
+      const target = acc;
+      bc += `<span class="sep">/</span><a onclick="FILE_PATH='${esc(target)}';loadFiles()">${esc(p)}</a>`;
+    }
+  }
+  document.getElementById('fileBreadcrumb').innerHTML = bc;
+  // 文件列表
+  const items = (r.items||[]).slice().sort((a,b) => {
+    if ((a.type==='dir') !== (b.type==='dir')) return a.type==='dir' ? -1 : 1;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  if (!items.length) { document.getElementById('filesList').innerHTML = '<div class="loading">空目录</div>'; return; }
+  let html = '<table><thead><tr><th>名称</th><th>大小</th><th>修改时间</th><th style="text-align:right">操作</th></tr></thead><tbody>';
+  for (const it of items) {
+    const isDir = it.type === 'dir';
+    const name = esc(it.name || it.path);
+    const fullPath = esc(it.path);
+    if (isDir) {
+      html += `<tr><td>📁 <a onclick="FILE_PATH='${fullPath}';loadFiles()" style="color:var(--accent);cursor:pointer">${name}</a></td><td>-</td><td>${it.mtime?new Date(it.mtime*1000).toLocaleString():'-'}</td><td class="row-actions" style="text-align:right"></td></tr>`;
+    } else {
+      html += `<tr><td>📄 ${name}</td><td>${fmtSize(it.size)}</td><td>${it.mtime?new Date(it.mtime*1000).toLocaleString():'-'}</td><td class="row-actions" style="text-align:right"><button class="icon-btn" onclick="checksumFile('${fullPath}','${name}')" title="校验和">#</button><button class="icon-btn" onclick="previewFile('${fullPath}','${name}')" title="预览">👁</button><button class="icon-btn" onclick="showFileInfo('${fullPath}')" title="详情">ℹ</button><button class="icon-btn" onclick="showRenameDialog('${fullPath}','${name}')" title="重命名">✏</button><button class="icon-btn" onclick="showCopyDialog('${fullPath}','${name}')" title="复制">📋</button><button class="icon-btn" onclick="downloadFile('${fullPath}','${name}')" title="下载">⬇</button><button class="icon-btn danger" onclick="deleteFile('${fullPath}','${name}')" title="删除">🗑</button></td></tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  if (items.length >= 500) html += '<div class="loading">⚠ 仅显示前 500 项，使用搜索或进入子目录查看更多</div>';
+  document.getElementById('filesList').innerHTML = html;
+}
+
+// NEW-R12: checksum — 校验文件是否与预期一致(如部署后确认落地内容)
+async function checksumFile(path, name) {
+  const algo = (document.getElementById('ckAlgo')?.value) || 'md5';
+  const r = await apiCall('checksum', { path, algorithm: algo, _timeout: 120000 });
+  if (!r.ok) { toast('校验失败: ' + (r.message||r.error), 'error'); return; }
+  const items = r.items || [];
+  const first = items[0] || {};
+  const val = first[algo] || first.md5 || first.sha1 || first.sha256 || '-';
+  const txt = `${name || path}\n${algo}: ${val}\nsize: ${first.size != null ? first.size : '-'}${items.length > 1 ? '\n(目录共 ' + items.length + ' 项, 此处显示首项)' : ''}`;
+  const out = document.getElementById('ckOut');
+  if (out) { out.style.display = 'block'; out.textContent = txt; }
+  if (navigator.clipboard) { try { await navigator.clipboard.writeText(String(val)); toast(`${algo} 已复制: ${String(val).substring(0,16)}…`, 'success'); } catch(e) { toast(txt.replace(/\n/g,' '), 'success'); } }
+  else toast(txt.replace(/\n/g, ' '), 'success');
+}
+
+function filterFiles() {
+  const q = document.getElementById('fileFilter').value.trim().toLowerCase();
+  const rows = document.querySelectorAll('#filesList tbody tr');
+  let visible = 0;
+  rows.forEach(tr => {
+    if (!q) { tr.style.display = ''; visible++; return; }
+    const name = tr.querySelector('td')?.textContent?.toLowerCase() || '';
+    if (name.includes(q)) { tr.style.display = ''; visible++; }
+    else tr.style.display = 'none';
+  });
+}
+
+async function downloadFile(path, name) {
+  const scope = document.getElementById('fileScope').value;
+  toast('下载中: ' + name, 'info');
+  const r = await apiCall('download', { scope, path });
+  if (!r.ok) { toast('下载失败: ' + (r.message||r.error), 'error'); return; }
+  const bin = atob(r.content_b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const blob = new Blob([bytes]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ 已下载: ' + name, 'success');
+}
+
+async function deleteFile(path, name) {
+  if (!confirm(`确认删除文件 ${name}？\n服务器会自动备份，但请谨慎操作。`)) return;
+  const scope = document.getElementById('fileScope').value;
+  const r = await apiCall('delete', { scope, path });
+  if (r.ok) { toast('✅ 已删除: ' + name, 'success'); loadFiles(); }
+  else toast('删除失败: ' + (r.message||r.error), 'error');
+}
+
+// ========== 备份管理 ==========
+async function loadBackups() {
+  const scope = document.getElementById('backupScope').value;
+  if (!scope) { document.getElementById('backupsList').innerHTML = '<div class="loading">无可用 scope</div>'; return; }
+  const path = document.getElementById('backupPath').value.trim() || '.';
+  const r = await apiCall('backup_ls', { scope, path });
+  if (!r.ok) { document.getElementById('backupsList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const backups = r.backups || [];
+  if (!backups.length) { document.getElementById('backupsList').innerHTML = `<div class="loading">${esc(path)} 无历史备份</div>`; return; }
+  let html = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">${esc(path)} 的备份 (${backups.length}):</div>`;
+  for (const b of backups) {
+    const name = typeof b === 'string' ? b : (b.file || b.name || '?');
+    const orig = typeof b === 'object' ? (b.path || '') : '';
+    const size = typeof b === 'object' ? fmtSize(b.size) : '-';
+    const ts = typeof b === 'object' && b.mtime ? new Date(b.mtime*1000).toLocaleString() : '-';
+    const bfn = esc(name);
+    const origPath = esc(orig || path);
+    html += `<div class="backup-item"><div class="info"><div class="name">${esc(name)}</div><div class="meta">${orig ? '原始: '+esc(orig)+' · ' : ''}${size} · ${ts}</div></div><button class="btn btn-primary btn-sm" onclick="rollbackFile('${origPath}','${bfn}')">回滚</button></div>`;
+  }
+  document.getElementById('backupsList').innerHTML = html;
+}
+
+async function rollbackFile(path, backupFile) {
+  const scope = document.getElementById('backupScope').value;
+  if (!confirm(`确认回滚 ${path}?\n将从备份 ${backupFile} 恢复, 当前文件会被覆盖备份。`)) return;
+  const r = await apiCall('backup_rb', { scope, path, backup_file: backupFile });
+  if (r.ok) toast('✅ 已回滚: ' + path, 'success');
+  else toast('回滚失败: ' + (r.message||r.error), 'error');
+}
+
+// ========== 批量回滚 ==========
+function getRbTimestamp() {
+  const timeStr = document.getElementById('rbTime').value;
+  if (!timeStr) return 0;
+  const ts = Math.floor(new Date(timeStr).getTime() / 1000);
+  return ts;
+}
+
+async function previewBatchRollback() {
+  const scope = document.getElementById('rbScope').value;
+  if (!scope) { toast('请选择 Scope', 'error'); return; }
+  const beforeTs = getRbTimestamp();
+  if (beforeTs <= 0) { toast('请选择回滚时间点', 'error'); return; }
+  const pathsStr = document.getElementById('rbPaths').value.trim();
+  const paths = pathsStr ? pathsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const preview = document.getElementById('rbPreview');
+  preview.innerHTML = '<div class="loading">正在扫描备份...</div>';
+  document.getElementById('rbExecBtn').disabled = true;
+  const r = await apiCall('batch_rollback', { scope, before_ts: beforeTs, paths, dry_run: true });
+  if (!r.ok) {
+    preview.innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(r.message||r.error)}</div>`;
+    return;
+  }
+  const results = r.results || [];
+  if (!results.length) {
+    preview.innerHTML = '<div class="loading">该时间点之前无可用备份</div>';
+    return;
+  }
+  const okCount = results.filter(x => x.ok).length;
+  const failCount = results.filter(x => !x.ok).length;
+  let html = `<div style="margin-bottom:8px;font-size:13px">
+    <span style="color:var(--green)">✅ 将恢复 ${r.restored_count || okCount} 个文件</span>`;
+  if (r.failed_count || failCount) html += ` · <span style="color:var(--red)">❌ ${r.failed_count || failCount} 个无备份</span>`;
+  html += `</div>`;
+  html += '<table style="font-size:12px"><thead><tr><th>文件路径</th><th>状态</th><th>备份来源</th></tr></thead><tbody>';
+  for (const res of results.slice(0, 50)) {
+    const status = res.ok ? '<span style="color:var(--green)">✅ 可恢复</span>' : `<span style="color:var(--red)">❌ ${esc(res.error||'失败')}</span>`;
+    html += `<tr><td style="font-family:monospace;font-size:11px">${esc(res.path)}</td><td>${status}</td><td style="font-family:monospace;font-size:11px;color:var(--text-dim)">${esc(res.restored_from||'-')}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  if (results.length > 50) html += `<div class="loading" style="margin-top:8px">仅显示前 50 条 / 共 ${results.length} 条</div>`;
+  html += `<div style="margin-top:12px;padding:10px;background:rgba(244,67,54,.08);border:1px solid rgba(244,67,54,.3);border-radius:8px;font-size:12px;color:var(--yellow)">⚠ 确认无误后点击「执行回滚」按钮。此操作不可逆，当前文件将被备份覆盖。</div>`;
+  preview.innerHTML = html;
+  document.getElementById('rbExecBtn').disabled = false;
+}
+
+async function executeBatchRollback() {
+  const scope = document.getElementById('rbScope').value;
+  const beforeTs = getRbTimestamp();
+  const pathsStr = document.getElementById('rbPaths').value.trim();
+  const paths = pathsStr ? pathsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+  if (!confirm(`确认执行批量回滚？\n\nScope: ${scope}\n时间点: ${document.getElementById('rbTime').value}\n将恢复到该时间之前最近的备份版本。\n\n此操作不可逆！`)) return;
+  document.getElementById('rbExecBtn').disabled = true;
+  document.getElementById('rbExecBtn').textContent = '回滚中...';
+  const r = await apiCall('batch_rollback', { scope, before_ts: beforeTs, paths });
+  document.getElementById('rbExecBtn').textContent = '执行回滚';
+  if (!r.ok) {
+    toast('回滚失败: ' + (r.message||r.error), 'error');
+    document.getElementById('rbPreview').innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(r.message||r.error)}</div>`;
+    return;
+  }
+  toast(`✅ 批量回滚完成: 恢复 ${r.restored_count} 个, 失败 ${r.failed_count} 个`, 'success');
+  const results = r.results || [];
+  let html = `<div style="margin-bottom:8px;font-size:13px">
+    <span style="color:var(--green)">✅ 已恢复 ${r.restored_count} 个文件</span>`;
+  if (r.failed_count) html += ` · <span style="color:var(--red)">❌ ${r.failed_count} 个失败</span>`;
+  html += `</div>`;
+  html += '<table style="font-size:12px"><thead><tr><th>文件路径</th><th>结果</th><th>备份来源</th></tr></thead><tbody>';
+  for (const res of results.slice(0, 50)) {
+    const status = res.ok ? '<span style="color:var(--green)">✅ 成功</span>' : `<span style="color:var(--red)">❌ ${esc(res.error||'失败')}</span>`;
+    html += `<tr><td style="font-family:monospace;font-size:11px">${esc(res.path)}</td><td>${status}</td><td style="font-family:monospace;font-size:11px;color:var(--text-dim)">${esc(res.restored_from||'-')}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('rbPreview').innerHTML = html;
+}
+
+// ========== 部署批次回滚 (按部署批次一键回滚整批文件) ==========
+async function loadDeployBatches() {
+  const scope = document.getElementById('dbScope').value;
+  if (!scope) { toast('请选择 Scope', 'error'); return; }
+  const minFiles = parseInt(document.getElementById('dbMinFiles').value) || 2;
+  const listEl = document.getElementById('dbList');
+  listEl.innerHTML = '<div class="loading">正在扫描备份...</div>';
+  const r = await apiCall('backup_ls', { scope, path: '.' });
+  if (!r.ok) { listEl.innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const backups = r.backups || [];
+  if (!backups.length) { listEl.innerHTML = '<div class="loading">无备份</div>'; return; }
+  // 按 10 秒窗口分组 (同次部署的文件备份时间相近, 10s 窗口能聚成一批)
+  const buckets = {};
+  for (const b of backups) {
+    const mt = b.mtime || 0;
+    const win = Math.floor(mt / 10) * 10;
+    if (!buckets[win]) buckets[win] = [];
+    buckets[win].push(b);
+  }
+  const batches = Object.keys(buckets)
+    .map(w => ({ ts: parseInt(w), files: buckets[w] }))
+    .filter(b => b.files.length >= minFiles)
+    .sort((a, b) => b.ts - a.ts);
+  if (!batches.length) {
+    listEl.innerHTML = `<div class="loading">无符合条件的批次 (≥${minFiles} 文件)。可调低最少文件数。</div>`;
+    return;
+  }
+  let html = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">共 ${batches.length} 个批次 (≥${minFiles} 文件), 按时间倒序:</div>`;
+  for (const batch of batches) {
+    const dt = new Date(batch.ts * 1000).toLocaleString();
+    const cnt = batch.files.length;
+    const batchId = 'batch_' + batch.ts;
+    html += `<div class="backup-item" style="flex-direction:column;align-items:stretch;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <div class="info"><div class="name">📦 ${esc(dt)} <span class="badge" style="background:rgba(33,150,243,.15);color:#2196f3">${cnt} 文件</span></div></div>
+        <div>
+          <button class="btn btn-primary btn-sm" onclick="toggleBatchFiles('${batchId}')" style="margin-right:6px">展开</button>
+          <button class="btn btn-danger btn-sm" onclick="rollbackBatch(${batch.ts})">回滚此批次</button>
+        </div>
+      </div>
+      <div id="${batchId}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+        ${batch.files.map(f => `<div style="font-family:monospace;font-size:11px;padding:2px 0">${esc(f.path)} <span style="color:var(--text-dim)">(${fmtSize(f.size)})</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+  listEl.innerHTML = html;
+}
+
+function toggleBatchFiles(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function rollbackBatch(batchTs) {
+  const scope = document.getElementById('dbScope').value;
+  if (!scope) { toast('请选择 Scope', 'error'); return; }
+  // 重新加载备份找到批次文件列表
+  const r = await apiCall('backup_ls', { scope, path: '.' });
+  if (!r.ok) { toast('加载备份失败: ' + (r.message||r.error), 'error'); return; }
+  const backups = r.backups || [];
+  const batchFiles = backups.filter(b => Math.floor((b.mtime||0)/10)*10 === batchTs);
+  if (!batchFiles.length) { toast('批次不存在或已被清理', 'error'); return; }
+  const fileList = batchFiles.map(f => '  · ' + f.path).slice(0, 10).join('\n') + (batchFiles.length > 10 ? `\n  ...(共${batchFiles.length}个)` : '');
+  if (!confirm(`确认回滚此批次？\n\n将恢复 ${batchFiles.length} 个文件到备份版本:\n${fileList}\n\n当前文件会被覆盖备份。`)) return;
+  let ok = 0, fail = 0;
+  const errors = [];
+  for (const f of batchFiles) {
+    const rr = await apiCall('backup_rb', { scope, path: f.path, backup_file: f.file });
+    if (rr.ok) ok++; else { fail++; errors.push(f.path + ': ' + (rr.message||rr.error)); }
+  }
+  if (fail === 0) {
+    toast(`✅ 批次回滚完成: 恢复 ${ok} 个文件`, 'success');
+    loadDeployBatches();
+  } else {
+    toast(`⚠ 批次回滚: 成功 ${ok}, 失败 ${fail}`, 'error');
+    console.log('rollback errors:', errors);
+  }
+}
+
+// ========== 审计日志 (人类可读版) ==========
+// 动作 -> 中文名: 让"exec / upload / batch_rollback"一眼能看懂
+const AUDIT_ACTION_CN = {
+  ping:'连通检测', health:'健康检查', metrics:'性能指标', help:'查看帮助', whoami:'身份查询',
+  upload:'上传文件', upload_batch:'批量上传', chunked_upload:'分片上传', batch_deploy:'批量部署', deploy:'部署文件',
+  push:'推送文件', pull:'拉取文件', verify:'部署后验证', status:'查看状态',
+  download:'下载文件', stat:'查看文件信息', list:'列目录', read_range:'读取文件片段', checksum:'计算校验和',
+  diff:'比对文件', sync_check:'同步检查', search:'全文搜索', todo:'待办标记', stats:'代码统计', doc:'生成文档',
+  delete:'删除文件', rename:'重命名', copy:'复制', mkdir:'新建目录', format:'格式化代码',
+  lint:'语法检查', lint_batch:'批量语法检查', php_run:'执行 PHP', exec:'执行 Shell 命令',
+  shell_open:'打开 Shell 会话', shell_run:'Shell 会话执行', shell_job:'查看后台任务',
+  shell_kill:'终止后台任务', shell_close:'关闭 Shell 会话', shell_list:'列出 Shell 会话',
+  backup_ls:'查看备份', backup_rb:'回滚备份', batch_rollback:'批量回滚', pipeline:'批量管道',
+  error_log:'查看错误日志', error_log_list:'列出错误日志',
+  recent_changes:'最近变更', oplog_append:'写入操作日志',
+  snippet_set:'保存代码片段', snippet_get:'读取代码片段', snippet_list:'列出代码片段', snippet_delete:'删除代码片段',
+  webhook_set:'配置 Webhook', webhook_list:'查看 Webhook', webhook_delete:'删除 Webhook', webhook_test:'测试 Webhook',
+  token_add:'新增 Token', token_delete:'删除 Token', tokens_list:'列出 Token',
+  scope_add:'新增目录授权', scope_delete:'删除目录授权', scopes_list:'列出目录授权',
+  audit_log:'查看审计日志', admin_stats:'管理统计', config_get:'读取配置', config_reload:'重载配置',
+  client_package:'打包客户端', package_list:'列出安装包', package_delete:'删除安装包',
+  '*':'鉴权失败'
+};
+// 服务端 reason 字段 -> 中文解释 (只解释已知值, 未知值原样显示)
+const AUDIT_REASON_CN = {
+  open_exec_no_allowlist:'exec 未配置 IP 白名单, 任意 IP 均可执行 (建议收紧)',
+  path_traversal:'路径越界, 已被拒绝',
+  scope_forbidden:'无权访问该目录',
+  cross_scope_denied:'跨目录访问被拒绝',
+  invalid_scope:'目录 (scope) 不存在',
+  token_missing:'请求缺少 Token',
+  forbidden:'权限不足',
+  unauthorized:'Token 无效或缺失'
+};
+const AUDIT_FIELD_CN = [
+  ['ts','时间'],['action','原始动作'],['code','结果码'],['ip','来源 IP'],['token_hash','Token 指纹'],
+  ['path','路径'],['cmd_preview','执行的命令'],['cmd_len','命令长度'],['timeout','超时上限(秒)'],
+  ['return_code','返回码'],['elapsed_ms','耗时(ms)'],['stdout_len','输出字节'],['stderr_len','错误输出字节'],
+  ['timed_out','是否超时'],['output_truncated','输出被截断'],['blocked_rel','被拒路径'],
+  ['blocked_reason','拒绝原因'],['reason','原因'],['required','所需权限'],['name','名称'],
+  ['target','目标'],['file','文件'],['size','大小(字节)'],['restored','恢复文件数'],
+  ['failed','失败文件数'],['exception','异常信息']
+];
+let AUDIT_FILTERED = [];
+
+function auditActionCN(a) { return AUDIT_ACTION_CN[a] || a || '?'; }
+function auditIsErr(e) { return !!(e.code && e.code !== 0); }
+function auditReasonCN(r) { return AUDIT_REASON_CN[r] || r; }
+
+// 用一句中文说清"这条日志到底干了什么"
+function auditDesc(e) {
+  const a = e.action || '?';
+  const p = e.path || '';
+  if (a === '*') return '鉴权失败: Token 无效或缺失, 请求被拒绝' + (p ? (' (目标: ' + p + ')') : '');
+  if (a === 'exec' || a === 'shell_run') {
+    let s = '执行命令: ' + (e.cmd_preview || '(未记录命令)');
+    if (e.return_code != null) s += '  → 返回码 ' + e.return_code + (e.return_code === 0 ? ' (正常)' : ' (命令报错)');
+    if (e.timed_out) s += ', 已超时';
+    if (e.elapsed_ms != null) s += ', 耗时 ' + e.elapsed_ms + 'ms';
+    return s;
+  }
+  switch (a) {
+    case 'upload': case 'upload_batch': case 'chunked_upload': return '上传 / 写入文件: ' + (p || '(未记录路径)');
+    case 'delete': return '删除文件: ' + (p || '(未记录路径)');
+    case 'rename': return '重命名: ' + (p || '?') + (e.new_path ? (' → ' + e.new_path) : '');
+    case 'copy': return '复制: ' + (p || '?') + (e.new_path ? (' → ' + e.new_path) : '');
+    case 'mkdir': return '新建目录: ' + (p || '(未记录路径)');
+    case 'read_range': case 'download': return '读取文件: ' + (p || '(未记录路径)');
+    case 'stat': case 'checksum': case 'diff': return '查看文件信息: ' + (p || '(未记录路径)');
+    case 'list': return '查看目录: ' + (p || '/');
+    case 'audit_log': return '查看审计日志';
+    case 'token_add': return '新增 Token: ' + (e.name || e.token || '');
+    case 'token_delete': return '删除 Token: ' + (e.target || e.name || '');
+    case 'scope_add': return '新增目录授权: ' + (e.name || '') + (e.work_dir ? (' → ' + e.work_dir) : '');
+    case 'scope_delete': return '删除目录授权: ' + (e.name || '');
+    case 'backup_rb': case 'batch_rollback': return '回滚备份' + (e.restored != null ? (': 恢复 ' + e.restored + ' 个文件' + (e.failed ? (', 失败 ' + e.failed) : '')) : (p ? (': ' + p) : ''));
+    case 'package_delete': return '删除安装包: ' + (e.file || p);
+    case 'client_package': return '生成客户端安装包';
+    case 'webhook_test': case 'webhook_set': return 'Webhook 操作' + (p ? (': ' + p) : '');
+    case 'ping': case 'whoami': case 'health': return '连通 / 身份检查';
+    case 'config_get': return '读取服务器配置 (敏感值已脱敏)';
+    case 'config_reload': return '重载服务器配置';
+  }
+  return '操作对象: ' + (p || '(无路径参数)');
+}
+
+function auditDetailHTML(e) {
+  const rows = [];
+  AUDIT_FIELD_CN.forEach(([k, label]) => {
+    if (e[k] === undefined || e[k] === '' || e[k] === null) return;
+    let v = e[k];
+    if (k === 'timed_out' || k === 'output_truncated') v = v ? '是' : '否';
+    if (k === 'reason' || k === 'blocked_reason') v = auditReasonCN(v);
+    rows.push('<span class="k">' + esc(label) + '</span><span class="v">' + esc(v) + '</span>');
+  });
+  let html = rows.length ? '<div class="aud-kv">' + rows.join('') + '</div>' : '';
+  if (e.stdout_preview) html += '<div class="aud-out"><span class="lbl">标准输出 (预览)</span>' + esc(e.stdout_preview) + '</div>';
+  if (e.stderr_preview) html += '<div class="aud-out"><span class="lbl" style="color:var(--red)">错误输出 (预览)</span>' + esc(e.stderr_preview) + '</div>';
+  const quick = [];
+  if (e.ip) quick.push(`<button class="btn btn-sm" data-v="${esc(e.ip)}" onclick="auditFilterBy('ip',this.dataset.v)">只看该 IP</button>`);
+  if (e.action) quick.push(`<button class="btn btn-sm" data-v="${esc(e.action)}" onclick="auditFilterBy('action',this.dataset.v)">只看该动作</button>`);
+  if (quick.length) html += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' + quick.join('') + '</div>';
+  html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--text-faint);font-size:11px">原始记录 (JSON)</summary><pre class="aud-out" style="margin-top:6px">' + esc(JSON.stringify(e, null, 2)) + '</pre></details>';
+  return html;
+}
+
+// 从某条记录一键筛选同 IP / 同动作
+function auditFilterBy(kind, val) {
+  const searchEl = document.getElementById('auditSearch');
+  const actionEl = document.getElementById('auditAction');
+  if (kind === 'ip') {
+    searchEl.value = val;
+    actionEl.value = '';
+  } else {
+    const has = Array.prototype.some.call(actionEl.options, o => o.value === val);
+    if (has) { actionEl.value = val; searchEl.value = ''; }
+    else { searchEl.value = val; }
+  }
+  filterAudit();
+}
+
+async function loadAudit() {
+  const lines = parseInt(document.getElementById('auditLines').value) || 100;
+  const r = await apiCall('audit_log', { lines });
+  if (!r.ok) { document.getElementById('auditList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  AUDIT_RAW = r.lines || r.entries || [];
+  // 填充 action 筛选下拉 (中文名 + 次数)
+  const counts = {};
+  AUDIT_RAW.forEach(e => { const a = e.action || '?'; counts[a] = (counts[a] || 0) + 1; });
+  const actions = Object.keys(counts).sort();
+  const curAct = document.getElementById('auditAction').value;
+  document.getElementById('auditAction').innerHTML = `<option value="">全部操作 (${AUDIT_RAW.length})</option>` +
+    actions.map(a => `<option value="${esc(a)}">${esc(auditActionCN(a))} (${esc(a)}) · ${counts[a]}</option>`).join('');
+  if (curAct && actions.includes(curAct)) document.getElementById('auditAction').value = curAct;
+  filterAudit();
+}
+
+function filterAudit() {
+  const listEl = document.getElementById('auditList');
+  const sumEl = document.getElementById('auditSummary');
+  if (!AUDIT_RAW.length) { listEl.innerHTML = '<div class="loading">暂无日志</div>'; sumEl.innerHTML = ''; AUDIT_FILTERED = []; return; }
+  const actFilter = document.getElementById('auditAction').value;
+  const resFilter = document.getElementById('auditResult').value;
+  const rangeFilter = document.getElementById('auditRange').value;
+  const q = (document.getElementById('auditSearch').value || '').trim().toLowerCase();
+  let filtered = AUDIT_RAW.slice().reverse();
+  if (actFilter) filtered = filtered.filter(e => (e.action || '?') === actFilter);
+  if (resFilter === 'ok') filtered = filtered.filter(e => !auditIsErr(e));
+  if (resFilter === 'err') filtered = filtered.filter(e => auditIsErr(e));
+  if (rangeFilter) filtered = filtered.filter(e => tsInRange(e.ts, rangeFilter));
+  if (q) filtered = filtered.filter(e => JSON.stringify(e).toLowerCase().includes(q));
+  AUDIT_FILTERED = filtered;
+
+  // 摘要: 总数 / 今天 / 成功失败 / 涉及 IP / 最频繁动作
+  const today = todayStr();
+  const todayCount = AUDIT_RAW.filter(e => (e.ts || '').slice(0, 10) === today).length;
+  const okN = filtered.filter(e => !auditIsErr(e)).length;
+  const errN = filtered.length - okN;
+  const ips = new Set(filtered.map(e => e.ip).filter(Boolean));
+  const freq = {};
+  filtered.forEach(e => { const a = e.action || '?'; freq[a] = (freq[a] || 0) + 1; });
+  const top = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+  sumEl.innerHTML =
+    `<span class="aud-chip">已加载 <b>${AUDIT_RAW.length}</b> 条</span>` +
+    `<span class="aud-chip">今天 <b>${todayCount}</b> 条</span>` +
+    `<span class="aud-chip">当前筛选 <b>${filtered.length}</b> 条 · 成功 <b>${okN}</b> / 失败 <b>${errN}</b></span>` +
+    `<span class="aud-chip">来源 IP <b>${ips.size}</b> 个</span>` +
+    (top ? `<span class="aud-chip">最多: <b>${esc(auditActionCN(top))}</b> ${freq[top]} 次</span>` : '') +
+    (errN ? `<span class="aud-chip err">有 <b>${errN}</b> 条失败/拒绝, 建议先看</span>` : '');
+
+  if (!filtered.length) { listEl.innerHTML = '<div class="loading">无匹配日志</div>'; return; }
+  const html = filtered.slice(0, 500).map(e => {
+    const isErr = auditIsErr(e);
+    const ts = e.ts || '';
+    const shortTs = ts.slice(0, 10) === today ? ts.slice(11) : ts;
+    const desc = auditDesc(e);
+    const reason = e.reason ? ` <span style="color:var(--yellow)">[${esc(auditReasonCN(e.reason))}]</span>` : '';
+    return `<details class="aud-item"><summary>` +
+      `<span class="aud-time" title="${esc(ts)}">${esc(shortTs)}</span>` +
+      `<span class="aud-act">${esc(auditActionCN(e.action))}<small>${esc(e.action || '?')}</small></span>` +
+      `<span class="aud-badge ${isErr?'err':''}">${isErr ? '失败 · ' + esc(e.code) : '成功'}</span>` +
+      `<span class="aud-who">${esc(e.ip || '')}${e.token_hash ? ' · token ' + esc(e.token_hash) : ''}</span>` +
+      `<div class="aud-desc">${esc(desc)}${reason}</div>` +
+      `</summary><div class="aud-detail">${auditDetailHTML(e)}</div></details>`;
+  }).join('');
+  listEl.innerHTML = html + `<div class="loading" style="margin-top:8px">显示 ${Math.min(filtered.length,500)} / ${filtered.length} 条 (点每条可展开原始字段和命令输出)</div>`;
+}
+
+function exportAudit() {
+  if (!AUDIT_FILTERED.length) { toast('当前没有可导出的记录', 'error'); return; }
+  const data = AUDIT_FILTERED.map(e => Object.assign({}, e, {
+    '动作(中文)': auditActionCN(e.action),
+    '说明': auditDesc(e),
+    '结果': auditIsErr(e) ? ('失败 ' + e.code) : '成功'
+  }));
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'audit-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  toast('已导出 ' + data.length + ' 条审计记录', 'success');
+}
+
+// ========== 开发工具 ==========
+async function execCmd() {
+  const scope = document.getElementById('execScope').value;
+  const cmd = document.getElementById('execCmd').value.trim();
+  const timeout = parseInt(document.getElementById('execTimeout').value) || 30;
+  if (!scope) { toast('请选择 scope', 'error'); return; }
+  if (!cmd) { toast('请输入命令', 'error'); return; }
+  const out = document.getElementById('execOut');
+  out.innerHTML = `<span class="cmd">$ ${esc(cmd)}</span>\n\n执行中... (超时 ${timeout}s)\n`;
+  const r = await apiCall('exec', { scope, cmd, timeout });
+  if (!r.ok) {
+    out.innerHTML = `<span class="cmd">$ ${esc(cmd)}</span>\n\n<span class="err">❌ ${esc(r.message||r.error)}</span>\n`;
+    return;
+  }
+  let html = `<span class="cmd">$ ${esc(cmd)}</span>\n\n`;
+  if (r.stdout) html += esc(r.stdout);
+  if (r.stderr) html += `\n<span class="err">${esc(r.stderr)}</span>`;
+  if (r.timed_out) html += `\n<span class="err">⚠ 进程超时, 已终止</span>`;
+  html += `\n\n<span class="ok">exit_code=${r.return_code}  耗时=${r.elapsed_ms||'?'}ms</span>`;
+  out.innerHTML = html;
+  out.scrollTop = out.scrollHeight;
+}
+
+// NEW-R12: php_run — 专用 PHP 执行通道
+async function phpRun() {
+  const scope = document.getElementById('phpRunScope').value;
+  const path = document.getElementById('phpRunPath').value.trim();
+  const argsRaw = document.getElementById('phpRunArgs').value.trim();
+  if (!scope) { toast('请选择 scope', 'error'); return; }
+  if (!path) { toast('请输入脚本路径', 'error'); return; }
+  const args = argsRaw ? argsRaw.split(/\s+/) : undefined;
+  const out = document.getElementById('phpRunOut');
+  out.innerHTML = `<span class="cmd">$ php ${esc(path)}${argsRaw ? ' ' + esc(argsRaw) : ''}</span>\n\n执行中...\n`;
+  const r = await apiCall('php_run', { scope, path, args, _timeout: 60000 });
+  if (!r.ok) { out.innerHTML = `<span class="cmd">$ php ${esc(path)}</span>\n\n<span class="err">❌ ${esc(r.message||r.error)}</span>\n`; return; }
+  let html = `<span class="cmd">$ php ${esc(path)}${argsRaw ? ' ' + esc(argsRaw) : ''}</span>\n\n`;
+  if (r.stdout) html += esc(r.stdout);
+  if (r.stderr) html += `\n<span class="err">${esc(r.stderr)}</span>`;
+  if (r.timed_out) html += `\n<span class="err">⚠ 超时</span>`;
+  html += `\n\n<span class="ok">exit_code=${r.exit_code}</span>`;
+  out.innerHTML = html;
+  out.scrollTop = out.scrollHeight;
+}
+
+async function doSearch() {
+  const scope = document.getElementById('searchScope').value;
+  const pattern = document.getElementById('searchPattern').value.trim();
+  if (!scope) { toast('请选择 scope', 'error'); return; }
+  if (!pattern) { toast('请输入搜索词', 'error'); return; }
+  const el = document.getElementById('searchResults');
+  el.innerHTML = '<div class="loading">搜索中...</div>';
+  const r = await apiCall('search', { scope, pattern, path: '.' });
+  if (!r.ok) { el.innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const results = r.results || r.matches || [];
+  if (!results.length) { el.innerHTML = '<div class="loading">未找到匹配</div>'; return; }
+  let html = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">找到 ${results.length} 个匹配</div>`;
+  for (const m of results.slice(0, 50)) {
+    const file = m.file || m.path || '?';
+    const line = m.line || m.line_no || '?';
+    const text = m.text || m.content || m.match || '';
+    html += `<div style="padding:6px 0;border-bottom:1px solid var(--border)"><code style="font-size:11px;color:var(--accent)">${esc(file)}:${esc(line)}</code> <span style="font-family:monospace;font-size:12px">${esc(text).substring(0,200)}</span></div>`;
+  }
+  if (results.length > 50) html += `<div class="loading">仅显示前 50 项 / 共 ${results.length} 个</div>`;
+  el.innerHTML = html;
+}
+
+// ========== 服务器配置 ==========
+async function loadConfig() {
+  const r = await apiCall('config_get');
+  if (!r.ok) { document.getElementById('configContent').textContent = '⚠ ' + (r.message||r.error); return; }
+  document.getElementById('configContent').textContent = JSON.stringify(r.config || r, null, 2);
+}
+
+async function reloadConfig() {
+  if (!confirm('确认重载服务器配置？')) return;
+  const r = await apiCall('config_reload');
+  if (r.ok) { toast('✅ 配置已重载', 'success'); loadConfig(); } else toast('重载失败: ' + (r.message||r.error), 'error');
+}
+
+// ========== 客户端打包 ==========
+let PKG_TOKENS = []; // 缓存完整 token 信息 (含完整 token 值)
+
+async function loadPackage() {
+  // 加载 token 列表
+  const r = await apiCall('tokens_list');
+  if (!r.ok) { document.getElementById('pkgResult').innerHTML = '<div class="loading">⚠ ' + esc(r.message||r.error) + '</div>'; return; }
+  PKG_TOKENS = r.tokens || [];
+  document.getElementById('pkg_token').innerHTML = PKG_TOKENS.map(t => `<option value="${esc(t.token)}">${esc(t.name)} (${t.token.substring(0,8)}***)</option>`).join('');
+  updatePkgScopes();
+}
+
+function updatePkgScopes() {
+  const tokenVal = document.getElementById('pkg_token').value;
+  const tk = PKG_TOKENS.find(t => t.token === tokenVal);
+  const scopes = tk ? (tk.scopes || []) : [];
+  document.getElementById('pkg_scope').innerHTML = scopes.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+}
+
+async function generatePackage() {
+  const target_token = document.getElementById('pkg_token').value;
+  const scope = document.getElementById('pkg_scope').value;
+  const doc_mode = document.getElementById('pkg_doc_mode').value || 'two_way';
+  const local_dir = (document.getElementById('pkg_local_dir').value || '').trim();
+  const remote_subdir = (document.getElementById('pkg_remote_subdir').value || '').trim();
+  if (!target_token) { alert('请选择 Token'); return; }
+  const btn = document.getElementById('pkgBtn');
+  btn.disabled = true; btn.textContent = '生成中...';
+  document.getElementById('pkgResult').innerHTML = '<div class="loading">正在服务器端打包 + 生成 AI 说明文档...</div>';
+  try {
+    const r = await apiCall('client_package', {
+      target_token, scope,
+      doc_mode, local_dir, remote_subdir,
+    });
+    if (!r.ok) {
+      document.getElementById('pkgResult').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`;
+      return;
+    }
+    // 降级模式 (无 zip)
+    if (r.mode === 'single_file') {
+      const blob = new Blob([r.content], {type: 'text/plain'});
+      const url = URL.createObjectURL(blob);
+      document.getElementById('pkgResult').innerHTML = `
+        <div class="card" style="background:var(--bg-hover)">
+          <p style="color:var(--yellow);font-size:13px;margin-bottom:12px">${esc(r.message)}</p>
+          <a href="${url}" download="${esc(r.filename)}">下载 ${esc(r.filename)}</a>
+        </div>`;
+      return;
+    }
+    // zip 模式
+    const zipData = atob(r.zip_b64);
+    const bytes = new Uint8Array(zipData.length);
+    for (let i = 0; i < zipData.length; i++) bytes[i] = zipData.charCodeAt(i);
+    const blob = new Blob([bytes], {type: 'application/zip'});
+    const url = URL.createObjectURL(blob);
+    // 【为什么只有 1KB?】—— 检查 sync.py 是否真的被打包进去了 (客户端 160~180KB 才正常)
+    const entries = r.entries || [];
+    const syncPySize = (entries.find(e => e.name === 'sync.py') || {}).size || 0;
+    const syncTooSmall = syncPySize < 1024 * 10;   // sync.py < 10KB 基本就是占位符没加载成功
+    const warnBanner = (syncTooSmall || (r.size||0) < 1024*5)
+      ? `<div style="background:rgba(255,152,0,.12);border:1px solid var(--yellow);border-radius:8px;padding:12px 14px;margin:12px 0 18px">
+           <div style="color:var(--yellow);font-weight:600;margin-bottom:8px">⚠ 打包体积异常偏小 (${fmtSize(r.size||0)})，疑似 sync.py 客户端没正确加载</div>
+           <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+             正常体积一般 30~60 KB；只有 1 KB 说明服务器上找不到 sync.py，把 zip 里的 sync.py 换成了一行提示占位符。
+             请先把 <code>ai-sync-client/sync.py</code> 上传到以下任一位置再重新打包：
+           </div>
+           <ul style="font-size:12px;color:var(--text-dim);margin:0;padding-left:22px;line-height:1.8">
+             <li><code>sync_api.php</code> 同目录（即当前 scope 根，最常用）</li>
+             <li><code>scopes[ai-sync].work_dir</code> 根目录（给其他 scope 打包时的统一来源）</li>
+             <li>当前 scope 的 work_dir 根目录</li>
+           </ul>
+           <div style="margin-top:10px;font-size:12px">
+             <div style="color:var(--text-dim);margin-bottom:4px">服务器尝试过的候选路径（后端 debug）：</div>
+             <pre style="background:var(--bg-card);padding:10px;border-radius:6px;margin:0;font-size:11px;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-all">${
+               (r.sync_py_candidates||[]).map(c => `${c.exists?'✅':'❌'} ${c.label}\n       ↳ ${c.path}   (size=${c.size||0})`).join('\n')
+               || '(后端未返回 candidates，请确认 sync_api.php 为最新版 v4.3+)'
+             }</pre>
+           </div>
+         </div>` : '';
+    // 生成分享说明 —— 优先用后端按模式生成的完整 AI 文档
+    const shareText = r && r.doc && r.doc.readme_md ? r.doc.readme_md : generateShareText(r);
+    const shareBlob = new Blob([shareText], {type: 'text/plain;charset=utf-8'});
+    const shareUrl = URL.createObjectURL(shareBlob);
+    const docModeTitle = r && r.doc ? r.doc.mode_title : '';
+    const hasDoc = !!(r && r.doc);
+    const readmeMd = (r && r.doc && r.doc.readme_md) || '';
+    // 简单 Markdown→HTML (只处理标题/代码块/列表/换行, 安全不引入第三方)
+    const readmeHtml = mdMinimalToHtml(readmeMd);
+    // readme 单独下载
+    const readmeBlob = new Blob([readmeMd], {type: 'text/markdown;charset=utf-8'});
+    const readmeUrl = URL.createObjectURL(readmeBlob);
+    let html = '<div class="card" style="background:var(--bg-hover);border-color:var(--accent)">';
+    html += '<h2 style="color:var(--accent)">✅ 客户端包 + AI 说明文档已生成</h2>';
+    html += warnBanner;
+    html += `<div class="stats-grid" style="margin-bottom:16px">
+      <div class="stat-box"><div class="label">Scope</div><div class="value" style="font-size:16px">${esc(r.scope)}</div></div>
+      <div class="stat-box"><div class="label">模式</div><div class="value" style="font-size:14px;color:var(--yellow)">${esc(docModeTitle||'(默认双向同步)')}</div></div>
+      <div class="stat-box"><div class="label">权限</div><div class="value" style="font-size:12px">${(r.permissions||[]).map(permTag).join(' ')}</div></div>
+      <div class="stat-box"><div class="label">压缩包大小</div><div class="value" style="font-size:16px">${fmtSize(r.size)}</div></div>
+      <div class="stat-box"><div class="label">sync.py 大小 <span style="color:${syncTooSmall?'var(--yellow)':'var(--green)'}">${syncTooSmall?'⚠ 异常':'✅ 正常'}</span></div><div class="value" style="font-size:16px">${fmtSize(syncPySize)}</div></div>
+      <div class="stat-box"><div class="label">本地目录</div><div class="value" style="font-size:11px;font-family:monospace;word-break:break-all">${esc((r.doc&&r.doc.local_dir)||r.watch_dir)}</div></div>
+      <div class="stat-box"><div class="label">服务器位置</div><div class="value" style="font-size:11px;font-family:monospace;word-break:break-all">${esc((r.doc&&r.doc.remote_full)||r.scope)}</div></div>
+      <div class="stat-box"><div class="label">SHA256</div><div class="value" style="font-size:10px;font-family:monospace;word-break:break-all">${esc((r.sha256||'').substring(0,24))}...</div></div>
+    </div>`;
+    // 条目明细（entries）: 每个打包进去的文件大小
+    if (entries && entries.length) {
+      html += '<div style="margin-bottom:14px"><div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">包内容明细：</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px;font-size:12px;font-family:monospace">';
+      for (const e of entries) {
+        html += `<div><span style="color:var(--text-dim)">${esc(e.name)}:</span> <b style="color:${e.size<100?'var(--yellow)':'var(--text)'}">${fmtSize(e.size)}</b></div>`;
+      }
+      html += '</div></div>';
+    }
+    html += `<div class="btn-row" style="margin-top:12px">
+      <a href="${url}" download="${esc(r.filename)}"><button class="btn btn-primary">⬇ 下载 zip 包 (${esc(r.filename)})</button></a>
+      <a href="${readmeUrl}" download="ai-sync-AI说明文档.md"><button class="btn btn-primary" style="background:var(--blue)">📄 下载 AI 说明文档 .md</button></a>
+      <a href="${shareUrl}" download="ai-sync-说明.txt"><button class="btn btn-primary" style="background:var(--blue);display:none">📄 下载使用说明</button></a>
+      <button class="btn btn-primary" style="background:var(--green)" onclick="copyAIDoc()">📋 复制 AI 说明文档</button>
+      ${r.download_url ? `<button class="btn btn-primary" style="background:var(--purple)" onclick="copyShareLink()">📋 复制完整分享说明(含下载链接)</button>` : ''}
+    </div>`;
+    // Tab: 下载区 / AI 文档预览 / 常用命令速查
+    html += `<div style="margin-top:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div class="tab" style="display:flex;margin:0;padding:0;border-bottom:1px solid var(--border);background:var(--bg-card)">
+        <div class="tab-btn tab-active" onclick="pkgSwitchTab('preview')" id="pkgTab-preview" style="padding:10px 16px;cursor:pointer;font-size:13px;border-right:1px solid var(--border)">📝 AI 说明文档预览</div>
+        <div class="tab-btn" onclick="pkgSwitchTab('cmd')" id="pkgTab-cmd" style="padding:10px 16px;cursor:pointer;font-size:13px;border-right:1px solid var(--border)">⚡ 常用命令速查</div>
+        <div class="tab-btn" onclick="pkgSwitchTab('share')" id="pkgTab-share" style="padding:10px 16px;cursor:pointer;font-size:13px">📎 分享信息</div>
+      </div>
+      <div style="padding:14px 16px;max-height:560px;overflow:auto">
+        <div id="pkgPanel-preview">
+          ${hasDoc ? `<div style="font-size:13px;line-height:1.75">${readmeHtml}</div>` : generateShareText(r).replace(/\n/g,'<br>')}
+        </div>
+        <div id="pkgPanel-cmd" style="display:none">${renderCheatSheet(r)}</div>
+        <div id="pkgPanel-share" style="display:none">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px">把下面整段复制给 AI / 新设备, 一键接入。</div>
+          <pre id="shareText" style="white-space:pre-wrap;word-break:break-all;background:var(--bg-card);padding:12px;border-radius:6px;font-size:12px;margin:0">${esc(shareText)}</pre>
+        </div>
+      </div>
+    </div>`;
+    html += `<pre id="aiDocRaw" style="display:none">${esc(readmeMd || shareText)}</pre>`;
+    html += '</div>';
+    document.getElementById('pkgResult').innerHTML = html;
+    loadPackageList(); // 刷新下载包列表
+  } catch(e) {
+    document.getElementById('pkgResult').innerHTML = `<div class="loading">⚠ ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '生成客户端包';
+  }
+}
+
+function generateShareText(r) {
+  // === 从第一次接手这个任务的 AI 角度来写：先讲"我是谁、写代码放哪、怎么同步"，再给一条能跑的命令。 ===
+  const dlUrl = r.download_url || '';
+  const scope = r.scope || '';
+  const perms = (r.permissions||[]).join(', ');
+  const mode  = (r.doc && r.doc.mode_title) || '双向同步（推荐）';
+  const localDir   = (r.doc && r.doc.local_dir)   || r.watch_dir || '/workspace/' + scope;
+  const remoteFull = (r.doc && r.doc.remote_full) || ('scope:' + scope);
+  const apiUrl = r.api_url || '';
+  const adminUrl = apiUrl.replace(/sync_api\.php$/i, 'admin.html');
+
+  let out = '';
+  out += `你好 AI。这是一份「用 ai-sync 同步客户端写代码」的任务说明。\n`;
+  out += `你要做的事很简单：在下面指定的本地目录里写/改代码，\n`;
+  out += `同步程序会自动把变更推到服务器对应目录，不用手动 ftp/scp。\n\n`;
+  out += `================================================================\n`;
+  out += `0. 你首先要记住的 3 件事（不记会出事故）\n`;
+  out += `================================================================\n\n`;
+  out += `【你的工作区（所有代码必须写在这里面，越界无效）】\n`;
+  out += `  · 本地位置:  ${localDir}\n`;
+  out += `  · 服务器位置: ${remoteFull}\n`;
+  out += `【你的权限】${perms || '(见 sync.conf)'}\n`;
+  out += `【当前开发模式】${mode}\n\n`;
+
+  out += `================================================================\n`;
+  out += `1. 获取同步客户端（AI 第一步就执行下面这段）\n`;
+  out += `================================================================\n\n`;
+  if (dlUrl) {
+    out += `方式 A（推荐）：直接从服务器下载 ZIP，包内已经写好 token + sync.conf，解压即用\n`;
+    out += `  ZIP 下载链接（curl/wget 都可，无需登录）：\n`;
+    out += `    ${dlUrl}\n\n`;
+    out += `  👉 直接复制这一条命令执行，下载 + 解压 + 连通性检查 一步搞定：\n`;
+    out += `    curl -sSL ${JSON.stringify(dlUrl)} -o /tmp/ai-sync-client.zip \\\n`;
+    out += `      && mkdir -p ~/ai-sync-client \\\n`;
+    out += `      && unzip -o /tmp/ai-sync-client.zip -d ~/ai-sync-client \\\n`;
+    out += `      && rm /tmp/ai-sync-client.zip \\\n`;
+    out += `      && cd ~/ai-sync-client \\\n`;
+    out += `      && python3 sync.py --conf sync.conf --status\n\n`;
+    out += `  ★ 验收标志：上面最后一行必须看到 ok=true 且 scope=${scope}。\n`;
+    out += `    没看到就停 —— 可能 Python<3.8 / 网络不可达 / SSL 证书问题，先修环境再往下走。\n\n`;
+    out += `方式 B（ZIP 已在本地）：\n`;
+    out += `    mkdir -p ~/ai-sync-client && cd ~/ai-sync-client\n`;
+    out += `    unzip -o ${r.filename || 'ai-sync-client-*.zip'} -d ~/ai-sync-client\n`;
+    out += `    python3 sync.py --conf sync.conf --status\n\n`;
+  } else {
+    out += `ZIP 下载链接：（请向管理员要最新客户端包或管理页直接下载）\n`;
+    out += `  解压 & 验证连通性：\n`;
+    out += `    mkdir -p ~/ai-sync-client && cd ~/ai-sync-client\n`;
+    out += `    unzip -o ${r.filename || 'ai-sync-client-*.zip'} -d ~/ai-sync-client\n`;
+    out += `    python3 sync.py --conf sync.conf --status\n\n`;
+    out += `  ★ 验收标志：必须看到 ok=true 且 scope=${scope}。\n\n`;
+  }
+
+  out += `================================================================\n`;
+  out += `2. 环境准备（只做一次）\n`;
+  out += `================================================================\n\n`;
+  out += `  · python3 --version  ≥ 3.8 （标准库 0 依赖，不需要 pip install 任何东西）\n`;
+  out += `  · 创建本地工作区目录：mkdir -p ${JSON.stringify(localDir)}\n`;
+  out += `  · 客户端放 ~/ai-sync-client/, 不要把 sync.py / sync.conf 放进 ${localDir} 里（否则会被推到服务器被别人下载）\n\n`;
+
+  out += `================================================================\n`;
+  out += `3. 你的日常工作流（严格按这个顺序做，别跳）\n`;
+  out += `================================================================\n\n`;
+  if (r.doc && (r.doc.mode === 'two_way')) {
+    out += `【方法一：双向同步 + 守护模式（推荐，最省心）】\n`;
+    out += `  Step 1 第一次进入项目，先拉回服务器现有代码（空项目可跳过）：\n`;
+    out += `    cd ~/ai-sync-client\n`;
+    out += `    python3 sync.py --conf sync.conf --pull\n`;
+    out += `    → 现在 ${localDir} 里就是当前服务器最新代码。\n\n`;
+    out += `  Step 2 启动后台守护（它自己一直跑，AI 写代码期间不要再管同步）：\n`;
+    out += `    python3 sync.py --conf sync.conf --watch start --watch-interval 2\n`;
+    out += `    → 守护每 2 秒扫 ${localDir}，发现改动立刻推到 ${remoteFull}。\n`;
+    out += `      停止守护: python3 sync.py --conf sync.conf --watch stop\n`;
+    out += `      查看守护: python3 sync.py --conf sync.conf --watch status\n\n`;
+    out += `  Step 3 在 ${localDir} 里直接写/改代码 —— 别手动 push，守护会自动做。\n\n`;
+    out += `  Step 4 服务器有人工改了配置/缓存时拉回本地：\n`;
+    out += `    python3 sync.py --conf sync.conf --pull\n\n`;
+    out += `  Step 5 提 PR/发版前手动确认三方一致：\n`;
+    out += `    python3 sync.py --conf sync.conf --verify\n\n`;
+  } else if (r.doc && (r.doc.mode === 'pull_edit_push')) {
+    out += `【方法二：拉-改-推 保守模式（多人协作 / 关键服务器用）】\n`;
+    out += `  每一轮 (改一个功能或一个 bug) 都严格按 Step1→5 走。\n\n`;
+    out += `  Step 1 先拉最新（防止覆盖别人刚改的）：\n`;
+    out += `    python3 sync.py --conf sync.conf --pull\n`;
+    out += `  Step 2 在 ${localDir} 里改/写代码（所有文件都必须在这目录里）\n`;
+    out += `  Step 3 改完先做语法 lint：\n`;
+    out += `    python3 sync.py --conf sync.conf --lint .\n`;
+    out += `  Step 4 【★ 原子部署 ★】批量推送 + 自动 php-lint + 失败自动回滚：\n`;
+    out += `    python3 sync.py --conf sync.conf --deploy ${JSON.stringify(localDir)} --smart-verify md5\n`;
+    out += `  Step 5 入口 HTTP 冒烟：\n`;
+    out += `    python3 sync.py --conf sync.conf --test index.php\n\n`;
+  } else { // brand_new
+    out += `【方法三：全新开发（服务器无代码，AI 从 0 写项目）】\n`;
+    out += `  Step 1 本地工作区准备空目录：\n`;
+    out += `    mkdir -p ${JSON.stringify(localDir)} && ls -la ${JSON.stringify(localDir)}\n`;
+    out += `  Step 2 在 ${localDir} 里规划项目结构并写完整代码（全部文件都不能越界到外面）\n`;
+    out += `  Step 3 【★ 首次原子部署 ★】一口气推，自动 php-lint + --smart 只传改动 + 失败自动回滚：\n`;
+    out += `    python3 sync.py --conf sync.conf --deploy ${JSON.stringify(localDir)} --smart-verify md5\n`;
+    out += `  Step 4 入口 HTTP 冒烟：\n`;
+    out += `    python3 sync.py --conf sync.conf --test index.php\n`;
+    out += `  Step 5 若 Step3/4 失败 → 先看下面「白屏排查」+ 回滚，修好再回 Step3；\n`;
+    out += `           稳定后日常切到「方法一 双向同步+--watch」迭代。\n\n`;
+  }
+
+  out += `================================================================\n`;
+  out += `4. 白屏/500 出错了怎么办（AI 遇到报错先跑这个，别瞎改）\n`;
+  out += `================================================================\n\n`;
+  out += `  ① 先看服务器有哪些日志可用：\n`;
+  out += `     python3 sync.py --conf sync.conf --error-log\n`;
+  out += `  ② 白屏最常见的 PHP Fatal / Parse：\n`;
+  out += `     python3 sync.py --conf sync.conf --error-log php_error --error-grep "Fatal|Parse|500|Uncaught" --error-lines 200\n`;
+  out += `  ③ Nginx 404/499/502 类错误：\n`;
+  out += `     python3 sync.py --conf sync.conf --error-log nginx_err --error-lines 100\n`;
+  out += `  ④ 看你自己刚才推了什么（同步操作记录）：\n`;
+  out += `     python3 sync.py --conf sync.conf --error-log audit --error-lines 50\n`;
+  out += `  ⑤ 推坏了立刻回滚（服务器每次覆盖文件都自动留备份）：\n`;
+  out += `     python3 sync.py --conf sync.conf --backup-list\n`;
+  out += `     python3 sync.py --conf sync.conf --rollback index.php --backup <备份名>\n\n`;
+
+  out += `================================================================\n`;
+  out += `5. 最常用的 12 条命令（90% 的需求都在这里）\n`;
+  out += `================================================================\n\n`;
+  const cmds = [
+    ['# 连通性/身份',    `python3 sync.py --conf sync.conf --status`, `必须看到 ok=true, scope=${scope}`],
+    ['',                  `python3 sync.py --conf sync.conf --whoami`, ''],
+    ['# 全量同步',        `python3 sync.py --conf sync.conf --pull`,   '服务器 → 本地'],
+    ['',                  `python3 sync.py --conf sync.conf --push`,   '本地 → 服务器（覆盖式，建议先 pull）'],
+    ['',                  `python3 sync.py --conf sync.conf --verify`, '本地/远程/快照 三方一致'],
+    ['# 原子部署（推荐）',`python3 sync.py --conf sync.conf --deploy ${JSON.stringify(localDir)} --smart-verify md5`, '自动 php-lint + 回滚'],
+    ['# 守护模式',        `python3 sync.py --conf sync.conf --watch start --watch-interval 2`, '启动守护'],
+    ['',                  `python3 sync.py --conf sync.conf --watch stop`, '停止守护'],
+    ['# 智能跳过',        `python3 sync.py --conf sync.conf --smart ${JSON.stringify(localDir+'/*')} --smart-apply`, '200 文件只改 1 个时用'],
+    ['# lint/冒烟/备份',  `python3 sync.py --conf sync.conf --lint .`, '批量 PHP 语法检查'],
+    ['',                  `python3 sync.py --conf sync.conf --test index.php`, '入口 HTTP 冒烟'],
+    ['',                  `python3 sync.py --conf sync.conf --history`, '最近变更历史'],
+  ];
+  for (const [tag, cmd, note] of cmds) {
+    out += `  ${tag.padEnd(14)} ${cmd}` + (note ? `   # ${note}` : '') + `\n`;
+  }
+  out += `\n`;
+
+  out += `================================================================\n`;
+  out += `6. 绝对不要做的 5 件事（帮你避免线上事故）\n`;
+  out += `================================================================\n\n`;
+  out += `  ① sync.conf 里有 token，不要提交到任何公开仓库，也不要写进 ${localDir}（否则会被推到服务器被下载）。\n`;
+  out += `  ② 传 path 参数时不要写 ../../ 或绝对路径（服务器会拒绝并打审计日志）。\n`;
+  out += `  ③ DELETE_SYNC=false 是默认的（本地删文件不会同步删除服务器），真要删服务器文件用 delete_remote 显式删。\n`;
+  out += `  ④ 推 config.php/数据库密码前先 --lint，推完立刻 --test，异常马上 --rollback。\n`;
+  out += `  ⑤ 白屏/500 先跑 error_log 看日志，不要乱猜乱改 —— 每次覆盖文件服务器都自动留备份，回滚能救你。\n\n`;
+
+  out += `================================================================\n`;
+  out += `7. 推送前安全检查清单（每次都要过一遍）\n`;
+  out += `================================================================\n\n`;
+  out += `  [ ] 没有硬编码密钥 — 数据库密码/API key 不要直接写在代码里\n`;
+  out += `  [ ] 没有提交 sync.conf — token 文件不能推到服务器\n`;
+  out += `  [ ] PHP 语法检查通过 — --lint 无错误才推送\n`;
+  out += `  [ ] 没有意外删除 — 确认 DELETE_SYNC=false\n`;
+  out += `  [ ] 路径没有越界 — 不要用 ../../ 或绝对路径\n`;
+  out += `  [ ] 敏感目录已忽略 — uploads/cache/log 不应被推送\n\n`;
+
+  out += `================================================================\n`;
+  out += `8. 命令选择决策（不确定用哪个命令时看这里）\n`;
+  out += `================================================================\n\n`;
+  out += `  改 PHP 文件 → --deploy (最安全: 自动 lint + 回滚)\n`;
+  out += `  改 JS/CSS/HTML → --push (静态文件不需要 lint)\n`;
+  out += `  不确定哪些变了 → --diff 先看差异 → --push 指定文件\n`;
+  out += `  只想看远程 → --ls / --cat / --read-range / --info (只读)\n`;
+  out += `  服务器改了要同步回来 → --pull (自动备份本地不一致文件)\n`;
+  out += `  白屏了 → --error-log php_error → 修复 → --deploy\n`;
+  out += `  修不好 → --backup-list → --rollback\n`;
+  out += `  要删服务器文件 → --rm 文件名 / --rm 目录 -R\n`;
+  out += `  要一直自动同步 → --watch start / --watch stop\n\n`;
+
+  out += `================================================================\n`;
+  out += `9. AI 行为准则（重要）\n`;
+  out += `================================================================\n\n`;
+  out += `  1. 先读后写 — 修改前先用 --cat 或 --read-range 看当前内容\n`;
+  out += `  2. 小步快跑 — 每改一个文件就推一次, 不要攒一堆一起推\n`;
+  out += `  3. 验证闭环 — 推送后 --verify, 部署后 --test, 养成闭环习惯\n`;
+  out += `  4. 不碰 sync.py — 它是工具不是项目代码\n`;
+  out += `  5. 安全意识 — 不要把密钥/token 写进工作目录推到服务器\n\n`;
+
+  out += `================================================================\n`;
+  out += `附录：关键信息（一般不用手动改，sync.conf 里已经写好）\n`;
+  out += `================================================================\n\n`;
+  out += `  API_URL      = ${apiUrl}\n`;
+  out += `  管理面板      = ${adminUrl}  （需 admin_token，你当前 token 可能无权访问）\n`;
+  out += `  SCOPE        = ${scope}\n`;
+  out += `  PERMISSIONS  = ${perms}\n`;
+  if (dlUrl) {
+    out += `  客户端下载    = ${dlUrl}\n`;
+    out += `  客户端 SHA256 = ${r.sha256}\n`;
+    out += `\n【⚠ 下载链接安全提醒】这个 ZIP 里面带完整 token，任何人拿到都能按上面权限操作。\n`;
+    out += `    · 用完在管理面板「下载包管理」里点删除；\n`;
+    out += `    · 不要粘贴到公开聊天/群里；\n`;
+    out += `    · token 泄露立刻去 sync_config.json 里吊销。\n`;
+  }
+  return out;
+}
+
+function copyShareLink() {
+  const text = document.getElementById('shareText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('✅ 使用说明已复制到剪贴板');
+  }).catch(() => {
+    const range = document.createRange();
+    range.selectNode(document.getElementById('shareText'));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    alert('请按 Ctrl+C 复制选中的文本');
+  });
+}
+
+function copyAIDoc() {
+  const el = document.getElementById('aiDocRaw') || document.getElementById('shareText');
+  if (!el) { alert('无内容可复制'); return; }
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    toast('✅ AI 说明文档已复制到剪贴板（粘贴给 AI 即可）', 'success');
+  }).catch(() => {
+    const range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    alert('请按 Ctrl+C 复制选中的文本');
+  });
+}
+
+function pkgSwitchTab(name) {
+  ['preview','cmd','share'].forEach(t => {
+    const tab = document.getElementById('pkgTab-'+t);
+    const panel = document.getElementById('pkgPanel-'+t);
+    if (!tab || !panel) return;
+    if (t === name) {
+      tab.classList.add('tab-active');
+      panel.style.display = '';
+      tab.style.background = 'var(--accent)';
+      tab.style.color = '#fff';
+    } else {
+      tab.classList.remove('tab-active');
+      panel.style.display = 'none';
+      tab.style.background = '';
+      tab.style.color = '';
+    }
+  });
+}
+
+// 最小 Markdown→HTML (只处理标题 / 代码块 / 列表 / 引用 / 加粗 / 换行)
+function mdMinimalToHtml(md) {
+  if (!md) return '';
+  const lines = md.split(/\r?\n/);
+  let out = '';
+  let inCode = false;
+  let codeBuf = '';
+  let inList = false;
+  const closeList = () => { if (inList) { out += '</ul>'; inList = false; } };
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    if (line.trim().startsWith('```')) {
+      closeList();
+      if (inCode) { out += '<pre style="background:var(--bg-card);padding:10px 12px;border-radius:6px;overflow:auto;margin:8px 0"><code>' + esc(codeBuf) + '</code></pre>'; codeBuf = ''; inCode = false; }
+      else { inCode = true; codeBuf = ''; }
+      continue;
+    }
+    if (inCode) { codeBuf += line + '\n'; continue; }
+    // 代码行 (4 空格开头, 单行不包含 > 列表)
+    if (/^    /.test(line) && !/^    /.test(line.replace(/^    /,'')) === false) {
+      closeList();
+      out += '<pre style="background:var(--bg-card);padding:8px 10px;border-radius:6px;overflow:auto;margin:6px 0"><code>' + esc(line.replace(/^    /,'')) + '</code></pre>';
+      continue;
+    }
+    if (/^#{1,6}\s+/.test(line)) {
+      closeList();
+      const m = line.match(/^(#{1,6})\s+(.*)$/);
+      const lvl = m[1].length;
+      out += '<h' + (lvl+2) + ' style="margin:14px 0 8px 0;color:var(--accent)">' + inlineEsc(m[2]) + '</h' + (lvl+2) + '>';
+      continue;
+    }
+    // 有序列表 / 无序列表
+    if (/^[-*+]\s+/.test(line) || /^\d+\.\s+/.test(line)) {
+      if (!inList) { out += '<ul style="margin:6px 0 6px 22px;padding:0">'; inList = true; }
+      out += '<li style="margin:2px 0">' + inlineEsc(line.replace(/^([-*+]|\d+\.)\s+/,'')) + '</li>';
+      continue;
+    } else {
+      closeList();
+    }
+    if (/^>/.test(line)) {
+      out += '<blockquote style="margin:6px 0;padding:6px 12px;border-left:3px solid var(--yellow);background:var(--bg-card);color:var(--text-dim)">' + inlineEsc(line.replace(/^>\s?/,'')) + '</blockquote>';
+      continue;
+    }
+    if (line.trim() === '') { out += '<br>'; continue; }
+    // 普通段落: 处理 **xxx** 加粗
+    out += '<div style="margin:2px 0">' + inlineEsc(line) + '</div>';
+  }
+  closeList();
+  if (inCode) { out += '<pre style="background:var(--bg-card);padding:10px 12px;border-radius:6px;overflow:auto"><code>' + esc(codeBuf) + '</code></pre>'; }
+  return out;
+  function inlineEsc(s) {
+    return esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong style="color:var(--accent)">$1</strong>')
+                 .replace(/`([^`]+)`/g, '<code style="background:var(--bg-card);padding:1px 6px;border-radius:4px;font-size:12px">$1</code>');
+  }
+}
+
+// 常用命令速查表 (固定, 不因模式变化, 方便 AI 快速跳转)
+function renderCheatSheet(r) {
+  const ld = (r.doc && r.doc.local_dir) || r.watch_dir || '/workspace/' + (r.scope||'default');
+  const rs = (r.doc && r.doc.remote_subdir) ? (r.doc.remote_subdir) : '';
+  const rr = rs ? (rs + '/') : '';
+  const arg = `--conf sync.conf`;
+  const row = (k, c) => `<tr><td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap"><strong>${esc(k)}</strong></td>
+    <td style="padding:6px 8px;border-bottom:1px solid var(--border)"><code style="background:var(--bg-card);padding:2px 6px;border-radius:4px;font-size:12px">${esc(c)}</code></td></tr>`;
+  return `
+    <p style="color:var(--text-dim);font-size:12px;margin-top:0;margin-bottom:10px">
+      本地工作目录: <code style="font-family:monospace">${esc(ld)}</code> &nbsp;|&nbsp; 服务器 scope 位置: <code style="font-family:monospace">scope:${esc(r.scope)}${rs?'/'+esc(rs):' (根)'}</code>
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--bg-card)"><th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);width:30%">操作</th><th style="padding:8px;text-align:left;border-bottom:1px solid var(--border)">命令 (都在 ai-sync-client 目录执行)</th></tr>
+      </thead>
+      <tbody>
+      ${row('状态',        `python3 sync.py ${arg} --status`)}
+      ${row('推送(本地→服务器)', `python3 sync.py ${arg} --push`)}
+      ${row('拉取(服务器→本地)', `python3 sync.py ${arg} --pull`)}
+      ${row('三方一致性验证', `python3 sync.py ${arg} --verify`)}
+      ${row('双向同步(单轮)', `python3 sync.py ${arg} --once`)}
+      ${row('★ 原子部署(PHP自动lint+失败回滚)', `python3 sync.py ${arg} --deploy ${JSON.stringify(ld)}`)}
+      ${row('★ 守护模式(方法一启动)', `python3 sync.py ${arg} --watch start --watch-interval 2`)}
+      ${row('★ 守护模式 状态/停止', `python3 sync.py ${arg} --watch status  /  --watch stop`)}
+      ${row('★ 智能跳过(跳过未变更)', `python3 sync.py ${arg} --smart ${JSON.stringify(ld+'/*')} --smart-apply`)}
+      ${row('语法检查(单文件)',  `python3 sync.py ${arg} --lint ${JSON.stringify(rr+'index.php')}`)}
+      ${row('语法检查(目录)',    `python3 sync.py ${arg} --lint ${JSON.stringify(rs||'.')}`)}
+      ${row('服务器执行/冒烟',   `python3 sync.py ${arg} --test ${JSON.stringify(rr+'index.php')}`)}
+      ${row('★ 白屏排查(先列出日志)', `python3 sync.py ${arg} --error-log`)}
+      ${row('★ 白屏排查(nginx 100行)', `python3 sync.py ${arg} --error-log nginx_err --error-lines 100`)}
+      ${row('★ 白屏排查(PHP Fatal)',  `python3 sync.py ${arg} --error-log php_error --error-grep Fatal --error-lines 200`)}
+      ${row('查看备份列表',     `python3 sync.py ${arg} --backup-list`)}
+      ${row('按文件回滚',       `python3 sync.py ${arg} --rollback ${JSON.stringify(rr+'index.php')} --backup <备份名>`)}
+      ${row('变更历史',         `python3 sync.py ${arg} --history`)}
+      </tbody>
+    </table>`;
+}
+
+// ========== 下载包管理 ==========
+async function loadPackageList() {
+  const el = document.getElementById('pkgList');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+  const r = await apiCall('package_list');
+  if (!r.ok) { el.innerHTML = '<div class="loading">⚠ ' + esc(r.message||r.error) + '</div>'; return; }
+  document.getElementById('pkgListBadge').textContent = r.total || 0;
+  if (!r.packages || r.packages.length === 0) {
+    el.innerHTML = '<div class="loading">暂无下载包</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>文件</th><th>大小</th><th>生成时间</th><th>下载链接</th><th>操作</th></tr></thead><tbody>';
+  let totalSize = 0;
+  for (const p of r.packages) {
+    totalSize += p.size || 0;
+    const ts = new Date((p.mtime||0)*1000).toLocaleString();
+    const expired = !!(p.expires_at && Date.now()/1000 > p.expires_at);
+    const expBadge = p.expires_at
+      ? (expired ? '<span style="color:var(--red);font-size:10px"> 已过期</span>'
+                 : '<span style="color:var(--green);font-size:10px"> 有效</span>')
+      : '<span style="color:var(--yellow);font-size:10px"> 无元数据</span>';
+    const linkCell = p.url
+      ? `<a href="${esc(p.url)}" target="_blank" style="color:var(--accent);font-size:11px;word-break:break-all">${esc(p.url)}</a>`
+      : '<span style="color:var(--dim);font-size:11px">无下载链接 (缺少 meta, 请重新打包)</span>';
+    html += `<tr>
+      <td class="token-cell">${esc(p.file)}${expBadge}</td>
+      <td>${fmtSize(p.size)}</td>
+      <td>${esc(ts)}</td>
+      <td>${linkCell}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deletePackage('${esc(p.file)}')">删除</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+  const totalEl = document.getElementById('pkgTotalSize');
+  if (totalEl) totalEl.textContent = `共 ${r.packages.length} 个包, 总计 ${fmtSize(totalSize)}`;
+}
+
+async function deletePackage(file) {
+  if (!confirm('确认删除下载包 ' + file + '?\n删除后链接立即失效。')) return;
+  const r = await apiCall('package_delete', { file });
+  if (r.ok) { loadPackageList(); } else { alert('删除失败: ' + (r.message||r.error)); }
+}
+
+function applyPkgPreset(preset) {
+  const scopeSel = document.getElementById('pkg_scope');
+  const scope = scopeSel.value || '';
+  const modeSel = document.getElementById('pkg_doc_mode');
+  const localDir = document.getElementById('pkg_local_dir');
+  const remoteSub = document.getElementById('pkg_remote_subdir');
+  if (preset === 'trae') {
+    modeSel.value = 'two_way';
+    localDir.value = '/workspace/' + (scope || 'project');
+    remoteSub.value = '';
+    toast('已应用 TRAE AI 预设: 双向同步模式', 'info');
+  } else if (preset === 'dev') {
+    modeSel.value = 'pull_edit_push';
+    localDir.value = '/workspace/' + (scope || 'project');
+    remoteSub.value = '';
+    toast('已应用开发者预设: 拉-改-推保守模式', 'info');
+  } else if (preset === 'ci') {
+    modeSel.value = 'brand_new';
+    localDir.value = '/workspace/' + (scope || 'project') + '-ci';
+    remoteSub.value = 'public_html';
+    toast('已应用 CI/CD 预设: 全新开发模式', 'info');
+  }
+}
+
+async function previewDocOnly() {
+  const target_token = document.getElementById('pkg_token').value;
+  const scope = document.getElementById('pkg_scope').value;
+  const doc_mode = document.getElementById('pkg_doc_mode').value || 'two_way';
+  const local_dir = (document.getElementById('pkg_local_dir').value || '').trim();
+  const remote_subdir = (document.getElementById('pkg_remote_subdir').value || '').trim();
+  if (!target_token) { alert('请选择 Token'); return; }
+  document.getElementById('pkgResult').innerHTML = '<div class="loading">正在生成 AI 文档预览 (不打包)...</div>';
+  try {
+    const r = await apiCall('client_package', {
+      target_token, scope,
+      doc_mode, local_dir, remote_subdir,
+      preview_only: true,
+    });
+    if (!r.ok) {
+      document.getElementById('pkgResult').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`;
+      return;
+    }
+    const readmeMd = (r.doc && r.doc.readme_md) || '';
+    const readmeHtml = mdMinimalToHtml(readmeMd);
+    const docModeTitle = (r.doc && r.doc.mode_title) || '';
+    let html = '<div class="card" style="background:var(--bg-hover);border-color:var(--blue)">';
+    html += '<h2 style="color:var(--blue)">👁 AI 说明文档预览</h2>';
+    html += `<div class="stats-grid" style="margin-bottom:14px">
+      <div class="stat-box"><div class="label">模式</div><div class="value" style="font-size:14px">${esc(docModeTitle)}</div></div>
+      <div class="stat-box"><div class="label">本地目录</div><div class="value" style="font-size:11px;font-family:monospace;word-break:break-all">${esc((r.doc&&r.doc.local_dir)||r.watch_dir||'')}</div></div>
+      <div class="stat-box"><div class="label">服务器位置</div><div class="value" style="font-size:11px;font-family:monospace;word-break:break-all">${esc((r.doc&&r.doc.remote_full)||r.scope||'')}</div></div>
+    </div>`;
+    html += `<div class="btn-row">
+      <button class="btn btn-primary" style="background:var(--green)" onclick="copyPreviewDoc()">📋 复制文档</button>
+      <button class="btn btn-sm" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)" onclick="generatePackage()">📦 确认无误，正式打包</button>
+    </div>`;
+    html += `<div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:14px 16px;max-height:600px;overflow:auto">
+        <div style="font-size:13px;line-height:1.75">${readmeHtml}</div>
+      </div>
+    </div>`;
+    html += `<pre id="previewDocRaw" style="display:none">${esc(readmeMd)}</pre>`;
+    html += '</div>';
+    document.getElementById('pkgResult').innerHTML = html;
+  } catch(e) {
+    document.getElementById('pkgResult').innerHTML = `<div class="loading">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+function copyPreviewDoc() {
+  const el = document.getElementById('previewDocRaw');
+  if (!el) { alert('无内容'); return; }
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    toast('✅ AI 说明文档已复制', 'success');
+  }).catch(() => {
+    const range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    alert('请按 Ctrl+C 复制');
+  });
+}
+
+async function cleanupOldPackages() {
+  const r = await apiCall('package_list');
+  if (!r.ok || !r.packages) return;
+  const now = Date.now() / 1000;
+  const oldPkgs = r.packages.filter(p => (now - (p.mtime||0)) > 7 * 86400);
+  if (!oldPkgs.length) { toast('没有 7 天前的过期包', 'info'); return; }
+  if (!confirm(`发现 ${oldPkgs.length} 个超过 7 天的下载包，确认全部删除？\n这些包里的 token 可能已过期或不再需要。`)) return;
+  let deleted = 0, failed = 0;
+  for (const p of oldPkgs) {
+    const dr = await apiCall('package_delete', { file: p.file });
+    if (dr.ok) deleted++; else failed++;
+  }
+  toast(`清理完成: 删除 ${deleted} 个, 失败 ${failed} 个`, deleted > 0 ? 'success' : 'error');
+  loadPackageList();
+}
+
+async function deleteAllPackages() {
+  const r = await apiCall('package_list');
+  if (!r.ok || !r.packages) return;
+  if (!r.packages.length) { toast('没有可删除的包', 'info'); return; }
+  if (!confirm(`确认删除全部 ${r.packages.length} 个下载包？\n\n⚠ 所有下载链接将立即失效，包含 token 的包将不可恢复。`)) return;
+  let deleted = 0, failed = 0;
+  for (const p of r.packages) {
+    const dr = await apiCall('package_delete', { file: p.file });
+    if (dr.ok) deleted++; else failed++;
+  }
+  toast(`全部删除完成: ${deleted} 个成功, ${failed} 个失败`, deleted > 0 ? 'success' : 'error');
+  loadPackageList();
+}
+
+// ========== 自动登录 ==========
+(async function() {
+  const savedToken = localStorage.getItem('ai_sync_admin_token');
+  const savedUrl = localStorage.getItem('ai_sync_api_url');
+  if (savedToken && savedUrl) {
+    ADMIN_TOKEN = savedToken;
+    API_URL = savedUrl;
+    try {
+      const r = await apiCall('ping');
+      if (r.ok && r.is_admin) { showApp(r); return; }
+    } catch(e) {}
+  }
+  // OPT-R12: 回填上次登录信息(token 已存在 localStorage, 回填不额外增加暴露面, 但省去每次翻配置)
+  document.getElementById('loginToken').value = savedToken || '';
+  document.getElementById('loginUrl').value = savedUrl || (location.origin + location.pathname.replace(/\/[^/]*$/, '/') + 'sync_api.php');
+})();
+
+// ========== v4.3 操作日志 ==========
+let OPLog_CLIENTS = [];
+let OPLOG_RAW = [];        // 当前客户端已加载的条目 (按时间正序, 可能含多页)
+let OPLOG_FILTERED = [];   // 当前前端筛选后的条目
+let OPLOG_META = {};       // total/matched/offset/has_more/stats/scope
+
+// 客户端命令 -> 中文名 (覆盖 sync.py 实际会写入日志的全部命令)
+const OPLOG_CMD_CN = {
+  exec:'执行命令', whoami:'身份检查', status:'查看状态', health:'健康检查', info:'查看信息',
+  pull:'拉取文件', push:'推送文件', deploy:'部署文件', sync:'同步', pull_smart:'智能拉取',
+  smart:'智能同步', diff:'差异对比', rm:'删除文件', mv:'移动文件', cp:'复制文件', mkdir:'新建目录',
+  ls:'列目录', cat:'查看文件', read_remote:'读取远程文件', write_remote:'回写远程文件',
+  edit_remote:'编辑远程文件', replace:'批量替换', search:'搜索', upload:'直传文件',
+  lint:'语法检查', lint_batch:'批量语法检查', stats:'代码统计', todo:'待办扫描',
+  error_log:'查看错误日志', recent_changes:'最近变更', backup_list:'查看备份', rollback:'回滚',
+  batch_rollback:'批量回滚', history:'查看历史', verify:'部署后验证', test:'运行测试',
+  selfcheck:'自检', check_update:'检查更新', self_update:'自更新', watch:'守护同步',
+  preflight:'部署前预检', fetch:'抓取', op_log:'查看操作日志', list_since:'增量列表',
+  snippets:'代码片段', admin:'管理命令', other:'其他操作', http_check:'HTTP 检查',
+  auto:'自动模式', auto_pull:'自动拉取', auto_save:'自动保存', auto_fix:'自动排查',
+  auto_status:'自动状态', api_help:'API 帮助', help_ai:'AI 帮助', doctor:'环境诊断',
+  fix:'自动修复', sync_check:'同步检查', pipeline:'批量管道', batch:'批量命令',
+  spider:'抓取 URL', package:'打包客户端', sync_once:'单次同步',
+  shell:'会话命令', shell_open:'会话打开', shell_close:'会话关闭', shell_list:'会话列表',
+  shell_job:'后台任务输出', shell_kill:'后台任务终止', shell_bg:'后台执行'
+};
+// args 字段 -> 中文标签 (详情面板)
+const OPLOG_ARG_CN = {
+  cmd:'命令', cmd_len:'命令长度', files:'文件', file:'文件', path:'路径', target:'目标',
+  url:'URL', method:'方法', pattern:'关键词', name:'名称', scopes:'作用域', perms:'权限',
+  token_len:'Token 长度', old_len:'原文本长度', new_len:'新文本长度', regex:'正则', count:'次数',
+  mode:'模式', interval:'间隔', subdir:'子目录', n:'数量', deploy_id:'部署 ID',
+  intent:'意图', subcmd:'子命令', limit:'条数', since:'起始时间', scope:'作用域',
+  work_dir:'工作目录', output_dir:'输出目录', session_name:'会话名', session_id:'会话 ID',
+  job_id:'任务 ID', env_keys:'环境变量', lines:'行数', cwd:'工作目录', background:'后台运行',
+  dry_run:'试运行', yes:'已确认', plain:'纯文本', json:'JSON', brief:'摘要', timeout:'超时',
+  action:'动作', topic:'主题', remote:'远程抓取', via_m3u8:'走 m3u8 代理',
+  exec_file:'脚本文件', exec_b64_len:'Base64 长度', any_ext:'不限扩展名',
+  from:'源', to:'目标', range:'行范围', recursive:'递归',
+  http_check:'HTTP 检查 URL', expect:'期望内容', smart_verify:'MD5 复验',
+  lint_first:'先 lint', pre_check:'部署前检查', post_check:'部署后检查',
+  post_expect:'部署后期望', nginx_reload:'重载 nginx', health_url:'健康检查 URL',
+};
+function oplogCmdCN(c) { return OPLOG_CMD_CN[c] || c || '?'; }
+function oplogArgLabel(k) { return OPLOG_ARG_CN[k] || k; }
+function oplogIsErr(e) { return e.rc !== 0 && e.rc !== undefined && e.rc !== null; }
+function fmtDur(ms) {
+  if (ms === undefined || ms === null || ms === '') return '-';
+  return ms >= 1000 ? (ms / 1000).toFixed(ms >= 10000 ? 0 : 1) + 's' : ms + 'ms';
+}
+function oplogFiles(a) {
+  let f = a && a.files;
+  if (!f) return [];
+  if (!Array.isArray(f)) f = [f];
+  return f.map(x => Array.isArray(x) ? String(x[0]) : String(x));
+}
+// 时间范围 -> 服务端 since (epoch 秒)
+function oplogRangeSince(range) {
+  if (!range) return 0;
+  if (range === 'today') { const d = new Date(); d.setHours(0, 0, 0, 0); return Math.floor(d.getTime() / 1000); }
+  const map = { '1h': 3600, '24h': 86400, '7d': 604800 };
+  return map[range] ? Math.floor(Date.now() / 1000) - map[range] : 0;
+}
+// 把 args 变成一句人话 (优先使用客户端生成的 summary)
+function oplogArgsText(e) {
+  if (e.summary) return String(e.summary);
+  const a = e.args;
+  if (a === undefined || a === null) return '';
+  if (Array.isArray(a)) return a.length ? JSON.stringify(a) : '';
+  if (typeof a !== 'object') return String(a);
+  const cmd = e.command;
+  if (cmd === 'exec' || cmd === 'shell' || cmd === 'shell_bg') {
+    const s = String(a.cmd || '');
+    const first = s.split('\n')[0];
+    return (first.length > 110 ? first.slice(0, 110) + '…' : first) + (s.split('\n').length > 1 ? '  (共 ' + s.split('\n').length + ' 行)' : '');
+  }
+  if (cmd === 'push' || cmd === 'deploy' || cmd === 'sync' || cmd === 'upload' ||
+      cmd === 'read_remote' || cmd === 'write_remote' || cmd === 'lint_batch') {
+    const names = oplogFiles(a);
+    if (!names.length) return a.dry_run ? '试运行, 未指定文件' : '';
+    return names.length + ' 项: ' + names.slice(0, 3).join(', ') + (names.length > 3 ? ' …' : '') + (a.dry_run ? '  (试运行)' : '');
+  }
+  if (cmd === 'pull' || cmd === 'pull_smart') {
+    return a.target ? ('目标: ' + a.target) : '';
+  }
+  if (cmd === 'rm') {
+    const names = oplogFiles(a);
+    if (names.length) return '删除: ' + names.join(', ') + (a.yes ? '  (已确认)' : '');
+    return a.target ? ('删除: ' + a.target + (a.yes ? '  (已确认)' : '')) : '';
+  }
+  if (cmd === 'mv' || cmd === 'cp') return (a.from || '?') + ' → ' + (a.to || '?');
+  if (cmd === 'rollback') return (a.target || '') + (a.backup ? ('  ← 备份 ' + a.backup) : '');
+  if (cmd === 'replace') return a.target ? (a.target + '  (' + (a.old_len || 0) + ' → ' + (a.new_len || 0) + ' 字符)') : '';
+  if (cmd === 'lint' || cmd === 'test') return a.target ? ('对象: ' + a.target) : '';
+  if (cmd === 'search') return a.pattern ? ('关键词: ' + a.pattern + (a.path && a.path !== '.' ? ' @ ' + a.path : '')) : '';
+  if (cmd === 'history') return a.limit ? ('最近 ' + a.limit + ' 条') : '';
+  if (cmd === 'auto' || cmd === 'admin') return a.intent || a.subcmd || '';
+  if (cmd === 'watch') return a.mode ? ('模式: ' + a.mode + (a.interval ? ', 间隔 ' + a.interval + 's' : '')) : '';
+  if (cmd === 'shell_open' || cmd === 'shell_close') return a.session_name || a.session_id || '';
+  if (cmd === 'shell_job' || cmd === 'shell_kill') return a.job_id ? ('任务: ' + a.job_id) : '';
+  const s = JSON.stringify(a);
+  return s === '{}' ? '' : (s.length > 140 ? s.slice(0, 140) + '…' : s);
+}
+function oplogDetailHTML(e) {
+  const rows = [];
+  const add = (k, v) => {
+    if (v === undefined || v === null || v === '') return;
+    rows.push([k, v]);
+  };
+  add('时间', e.ts);
+  add('摘要', e.summary);
+  add('命令', oplogCmdCN(e.command) === e.command ? e.command : (oplogCmdCN(e.command) + ' / ' + e.command));
+  add('结果', oplogIsErr(e) ? ('失败 · rc=' + e.rc) : '成功');
+  add('耗时', fmtDur(e.duration_ms));
+  add('操作 ID', e.op_id);
+  add('客户端版本', e.version);
+  add('主机', e.host);
+  add('用户', e.user);
+  add('工作目录', e.cwd);
+  add('来源 IP', e.ip);
+  add('User-Agent', e.ua);
+  add('Token', e.token_name);
+  add('服务端时间', e.server_ts);
+  let html = '<div class="aud-kv">' + rows.map(r =>
+    '<span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1]) + '</span>').join('') + '</div>';
+  const a = e.args;
+  if (a && !Array.isArray(a) && typeof a === 'object' && Object.keys(a).length) {
+    const arows = [];
+    Object.keys(a).forEach(k => {
+      let v = a[k];
+      if (v === '' || v === null || v === undefined) return;
+      if (typeof v === 'object') v = JSON.stringify(v, null, 2);
+      arows.push('<span class="k">' + esc(oplogArgLabel(k)) + '</span><span class="v">' + esc(v) + '</span>');
+    });
+    if (arows.length) html += '<div class="aud-kv" style="margin-top:8px">' + arows.join('') + '</div>';
+  } else if (Array.isArray(a) && a.length) {
+    html += '<div class="aud-out"><span class="lbl">参数</span>' + esc(JSON.stringify(a, null, 2)) + '</div>';
+  }
+  if (e.command === 'exec' && a && a.cmd) {
+    html += '<div class="aud-out"><span class="lbl">完整命令</span>' + esc(a.cmd) + '</div>';
+  }
+  html += '<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--text-faint);font-size:11px">原始记录 (JSON)</summary><pre class="aud-out" style="margin-top:6px">' + esc(JSON.stringify(e, null, 2)) + '</pre></details>';
+  return html;
+}
+
+async function loadOplog() {
+  await loadOplogClients();
+}
+
+// 按当前客户端的命令分布刷新命令下拉 (服务端 oplog_list 已返回 commands)
+function refreshOplogCommandOptions() {
+  const sel = document.getElementById('oplogCommand');
+  if (!sel) return;
+  const cur = sel.value;
+  const cid = document.getElementById('oplogClient').value;
+  const c = OPLog_CLIENTS.find(x => x.client_id === cid);
+  const cmds = (c && c.commands) || {};
+  const keys = Object.keys(cmds).sort((a, b) => cmds[b] - cmds[a]);
+  sel.innerHTML = '<option value="">全部命令</option>' + keys.map(k =>
+    '<option value="' + esc(k) + '">' + esc(oplogCmdCN(k)) + ' (' + cmds[k] + ')</option>').join('');
+  if (cur && keys.indexOf(cur) >= 0) sel.value = cur;
+}
+
+async function loadOplogClients() {
+  const r = await apiCall('oplog_list');
+  const container = document.getElementById('oplogClientList');
+  const select = document.getElementById('oplogClient');
+  if (!r.ok) { container.innerHTML = '<div class="error">加载失败: ' + esc(r.message||r.error) + '</div>'; return; }
+  OPLog_CLIENTS = r.clients || [];
+  const totalLines = OPLog_CLIENTS.reduce((n, c) => n + (c.line_count || 0), 0);
+  const totalErrs = OPLog_CLIENTS.reduce((n, c) => n + (c.error_count || 0), 0);
+  document.getElementById('oplogBadge').textContent = OPLog_CLIENTS.length + ' 个客户端 · ' +
+    totalLines + ' 条记录' + (totalErrs ? ' · ' + totalErrs + ' 条失败' : '');
+  // 渲染客户端卡片
+  if (OPLog_CLIENTS.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center">暂无客户端操作日志</div>';
+    select.innerHTML = '<option value="">选择客户端...</option>';
+    refreshOplogCommandOptions();
+    return;
+  }
+  let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
+  OPLog_CLIENTS.forEach(c => {
+    const active = (select.value === c.client_id) ? 'style="border-color:var(--accent);background:rgba(139,200,234,0.1)"' : '';
+    const errN = (c.error_count === undefined || c.error_count === null) ? 0 : c.error_count;
+    const okN = (c.ok_count === undefined || c.ok_count === null) ? Math.max(0, (c.line_count || 0) - errN) : c.ok_count;
+    html += '<div class="client-card" onclick="document.getElementById(\'oplogClient\').value=\''+c.client_id+'\';refreshOplogCommandOptions();loadOplogEntries()" style="cursor:pointer;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;'+active.replace(/style="/,'')+'">';
+    html += '<div style="font-weight:600;font-family:monospace">'+esc(c.client_id)+'</div>';
+    html += '<div style="color:var(--text-dim);margin-top:2px">'+esc(c.scope)+' · '+c.line_count+'条 · '+c.size_human;
+    html += ' · <span style="color:var(--green)">成功 '+okN+'</span>';
+    if (errN) html += ' · <span style="color:var(--red)">失败 '+errN+'</span>';
+    html += '</div>';
+    if (c.last_ts) {
+      const lastText = c.last_summary || oplogCmdCN(c.last_command);
+      html += '<div style="color:var(--blue);margin-top:2px;font-size:11px">最后: '+esc(c.last_ts)+' · '+esc(lastText);
+      if (c.last_ip) html += ' · '+esc(c.last_ip);
+      html += '</div>';
+    }
+    if (c.first_ts && c.first_ts !== c.last_ts) html += '<div style="color:var(--text-faint);margin-top:1px;font-size:10px">起始: '+esc(c.first_ts)+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+  // 更新下拉 (保留当前选择)
+  const prev = select.value;
+  select.innerHTML = '<option value="">选择客户端...</option>' + OPLog_CLIENTS.map(c => {
+    const errN = (c.error_count === undefined || c.error_count === null) ? 0 : c.error_count;
+    return '<option value="'+c.client_id+'">'+c.client_id+' ('+c.scope+', '+c.line_count+'条'+(errN ? ', 失败 '+errN : '')+')</option>';
+  }).join('');
+  if (prev && OPLog_CLIENTS.some(c => c.client_id === prev)) select.value = prev;
+  refreshOplogCommandOptions();
+}
+
+async function loadOplogEntries(append) {
+  append = append === true;
+  const clientId = document.getElementById('oplogClient').value;
+  const container = document.getElementById('oplogEntries');
+  const sumEl = document.getElementById('oplogSummary');
+  const moreEl = document.getElementById('oplogMore');
+  if (!clientId) {
+    container.innerHTML = '<div class="loading">选择客户端后查看操作日志</div>';
+    sumEl.innerHTML = ''; moreEl.innerHTML = '';
+    return;
+  }
+  const grep = document.getElementById('oplogGrep').value.trim();
+  const limit = parseInt(document.getElementById('oplogLimit').value) || 100;
+  const command = document.getElementById('oplogCommand').value;
+  const result = document.getElementById('oplogResult').value;
+  const range = document.getElementById('oplogRange').value;
+  const offset = append ? (OPLOG_META.offset || 0) : 0;
+  const params = { client_id: clientId, limit, offset };
+  if (grep) params.grep = grep;
+  if (command) params.command = command;
+  if (result) params.result = result;
+  const since = oplogRangeSince(range);
+  if (since) params.since = since;
+  if (append) {
+    moreEl.innerHTML = '<div class="loading">加载更早...</div>';
+  } else {
+    container.innerHTML = '<div class="loading">加载中...</div>';
+    sumEl.innerHTML = ''; moreEl.innerHTML = '';
+    OPLOG_RAW = []; OPLOG_META = {};
+  }
+  const r = await apiCall('oplog_view', params);
+  if (!r.ok) {
+    container.innerHTML = '<div class="error">加载失败: ' + esc(r.message||r.error) + '</div>';
+    moreEl.innerHTML = '';
+    return;
+  }
+  const page = r.entries || [];
+  OPLOG_RAW = append ? page.concat(OPLOG_RAW) : page;
+  OPLOG_META = {
+    total: r.total,
+    matched: (r.matched === undefined || r.matched === null) ? OPLOG_RAW.length : r.matched,
+    scope: r.scope,
+    grep: grep, command: command, result: result, range: range,
+    offset: offset + ((r.returned === undefined || r.returned === null) ? page.length : r.returned),
+    hasMore: !!r.has_more,
+    stats: r.stats || null,
+    client: clientId
+  };
+  renderOplog();
+}
+
+// 渲染: 服务端已按 命令/结果/时间 筛选并返回一页, 这里只做展示与兜底过滤
+function renderOplog() {
+  const container = document.getElementById('oplogEntries');
+  const sumEl = document.getElementById('oplogSummary');
+  const moreEl = document.getElementById('oplogMore');
+  if (!OPLOG_META.client) {
+    container.innerHTML = '<div class="loading">选择客户端后查看操作日志</div>';
+    sumEl.innerHTML = ''; moreEl.innerHTML = '';
+    return;
+  }
+  const resFilter = document.getElementById('oplogResult').value;
+  const rangeFilter = document.getElementById('oplogRange').value;
+  let list = OPLOG_RAW.slice().reverse();   // 最新在上
+  // 兜底过滤 (兼容旧服务端不认参数的情况; 新服务端已过滤, 结果一致)
+  if (resFilter === 'ok') list = list.filter(e => !oplogIsErr(e));
+  if (resFilter === 'error' || resFilter === 'err') list = list.filter(e => oplogIsErr(e));
+  if (rangeFilter) list = list.filter(e => tsInRange(e.ts, rangeFilter));
+  OPLOG_FILTERED = list;
+
+  const st = OPLOG_META.stats || {};
+  const okN = (st.ok === undefined || st.ok === null) ? list.filter(e => !oplogIsErr(e)).length : st.ok;
+  const errN = (st.error === undefined || st.error === null) ? (list.length - okN) : st.error;
+  const matched = OPLOG_META.matched;
+  const total = (OPLOG_META.total === undefined || OPLOG_META.total === null) ? OPLOG_RAW.length : OPLOG_META.total;
+  const durs = list.map(e => e.duration_ms).filter(x => typeof x === 'number');
+  const avg = (st.avg_ms !== undefined && st.avg_ms !== null) ? st.avg_ms : (durs.length ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : null);
+  const slow = (st.max_ms !== undefined && st.max_ms !== null) ? st.max_ms : (durs.length ? Math.max.apply(null, durs) : null);
+  const byCmd = st.by_command && Object.keys(st.by_command).length ? st.by_command :
+    list.reduce((o, e) => { const k = e.command || '?'; o[k] = (o[k] || 0) + 1; return o; }, {});
+  const topCmds = Object.keys(byCmd).sort((a, b) => byCmd[b] - byCmd[a]).slice(0, 8);
+
+  sumEl.innerHTML =
+    `<span class="aud-chip">共 <b>${total}</b> 条 · 命中 <b>${matched}</b> 条 · 已加载 <b>${OPLOG_RAW.length}</b> 条</span>` +
+    `<span class="aud-chip">筛选结果 成功 <b>${okN}</b> / 失败 <b>${errN}</b></span>` +
+    (avg !== null ? `<span class="aud-chip">平均耗时 <b>${fmtDur(avg)}</b></span>` : '') +
+    (slow !== null ? `<span class="aud-chip">最慢 <b>${fmtDur(slow)}</b></span>` : '') +
+    `<span class="aud-chip">客户端 <b>${esc(OPLOG_META.client)}</b>${OPLOG_META.scope ? ' · ' + esc(OPLOG_META.scope) : ''}</span>` +
+    (errN ? `<span class="aud-chip err">有 <b>${errN}</b> 条失败, 建议先看</span>` : '');
+  if (topCmds.length) {
+    sumEl.innerHTML += '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' + topCmds.map(k =>
+      `<span class="aud-chip" title="${esc(k)}">${esc(oplogCmdCN(k))} <b>${byCmd[k]}</b></span>`).join('') + '</div>';
+  }
+
+  if (!list.length) {
+    container.innerHTML = '<div class="loading">当前筛选下没有记录</div>';
+    moreEl.innerHTML = '';
+    return;
+  }
+  const html = list.map(e => {
+    const isErr = oplogIsErr(e);
+    const ts = e.ts || '';
+    const shortTs = friendlyTs(ts);
+    const desc = oplogArgsText(e);
+    const where = [e.host, e.user].filter(Boolean).join(' / ');
+    return `<details class="aud-item"><summary>` +
+      `<span class="aud-time" title="${esc(ts)}">${esc(shortTs)}</span>` +
+      `<span class="aud-act">${esc(oplogCmdCN(e.command))}<small>${esc(e.command || '?')}</small></span>` +
+      `<span class="aud-badge ${isErr ? 'err' : ''}">${isErr ? '失败 · rc=' + esc(e.rc) : '成功'}</span>` +
+      `<span class="aud-who">${esc(fmtDur(e.duration_ms))}${where ? ' · ' + esc(where) : ''}</span>` +
+      (desc ? `<div class="aud-desc">${esc(desc)}</div>` : '') +
+      `</summary><div class="aud-detail">${oplogDetailHTML(e)}</div></details>`;
+  }).join('');
+  container.innerHTML = html;
+  const remaining = Math.max(0, (matched || 0) - OPLOG_RAW.length);
+  moreEl.innerHTML = OPLOG_META.hasMore ?
+    `<button class="btn btn-sm" onclick="loadOplogEntries(true)">加载更早${remaining ? ' (' + remaining + ' 条)' : ''}</button>` : '';
+}
+
+function exportOplog() {
+  if (!OPLOG_FILTERED.length) { toast('当前没有可导出的记录', 'error'); return; }
+  const st = OPLOG_META.stats || {};
+  const data = OPLOG_FILTERED.map(e => Object.assign({}, e, {
+    '命令(中文)': oplogCmdCN(e.command),
+    '说明': oplogArgsText(e),
+    '结果': oplogIsErr(e) ? ('失败 rc=' + e.rc) : '成功'
+  }));
+  const payload = {
+    exported_at: new Date().toISOString(),
+    client_id: OPLOG_META.client || '',
+    scope: OPLOG_META.scope || '',
+    filters: { grep: OPLOG_META.grep || '', command: OPLOG_META.command || '',
+               result: OPLOG_META.result || '', range: OPLOG_META.range || '' },
+    stats: st,
+    entries: data
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'oplog-' + (OPLOG_META.client || 'client') + '-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  toast('已导出 ' + data.length + ' 条操作记录', 'success');
+}
+
+// ========== v4.5 文件浏览器增强 ==========
+
+async function showUploadDialog() {
+  const scope = document.getElementById('fileScope').value;
+  if (!scope) { toast('请先选择 scope', 'error'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 64 * 1024 * 1024) { toast('文件超过 64MB 限制', 'error'); return; }
+    toast('上传中: ' + file.name, 'info');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = btoa(String.fromCharCode(...new Uint8Array(reader.result)));
+      const path = FILE_PATH === '.' ? file.name : FILE_PATH + '/' + file.name;
+      const r = await apiCall('upload', { scope, path, content_b64: b64 });
+      if (r.ok) { toast('上传成功: ' + file.name, 'success'); loadFiles(); }
+      else toast('上传失败: ' + (r.message || r.error), 'error');
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+
+async function showMkdirDialog() {
+  const scope = document.getElementById('fileScope').value;
+  if (!scope) { toast('请先选择 scope', 'error'); return; }
+  const name = prompt('目录名称:');
+  if (!name) return;
+  const path = FILE_PATH === '.' ? name : FILE_PATH + '/' + name;
+  const r = await apiCall('mkdir', { scope, path });
+  if (r.ok) { toast('目录已创建: ' + name, 'success'); loadFiles(); }
+  else toast('创建失败: ' + (r.message || r.error), 'error');
+}
+
+async function showFileInfo(path) {
+  const scope = document.getElementById('fileScope').value;
+  const r = await apiCall('stat', { scope, path });
+  if (!r.ok) { toast('查询失败: ' + (r.message || r.error), 'error'); return; }
+  const info = r.info || r;
+  let html = `<div style="background:var(--bg);border-radius:8px;padding:16px;font-size:13px;line-height:2">`;
+  html += `<div><strong>路径:</strong> ${esc(path)}</div>`;
+  html += `<div><strong>类型:</strong> ${info.type === 'dir' ? '目录' : '文件'}</div>`;
+  html += `<div><strong>大小:</strong> ${fmtSize(info.size || 0)}</div>`;
+  if (info.mtime) html += `<div><strong>修改时间:</strong> ${new Date(info.mtime * 1000).toLocaleString()}</div>`;
+  if (info.md5) html += `<div><strong>MD5:</strong> <code>${esc(info.md5)}</code></div>`;
+  if (info.mode) html += `<div><strong>权限:</strong> ${esc(info.mode)}</div>`;
+  html += `</div>`;
+  // 用 toast 风格显示
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:500px;width:90%;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  div.innerHTML = `<h3 style="margin:0 0 12px;color:var(--accent)">📋 文件详情</h3>${html}<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="this.parentElement.remove()">关闭</button>`;
+  document.body.appendChild(div);
+}
+
+async function previewFile(path, name) {
+  const scope = document.getElementById('fileScope').value;
+  if (!scope) { toast('请先选择 scope', 'error'); return; }
+  // 创建模态框
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:12px;max-width:900px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden';
+  modal.innerHTML = `
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <h3 style="margin:0;font-size:14px;color:var(--accent)">👁 ${esc(name)}</h3>
+      <button class="icon-btn" onclick="this.closest('div[style*=&quot;position:fixed&quot;]').remove()" style="font-size:18px">✕</button>
+    </div>
+    <div id="previewContent" style="padding:0;overflow:auto;flex:1"><div class="loading">加载中...</div></div>
+    <div id="previewFooter" style="padding:8px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text-dim);display:flex;justify-content:space-between;flex-shrink:0"></div>
+  `;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  const contentEl = modal.querySelector('#previewContent');
+  const footerEl = modal.querySelector('#previewFooter');
+  // 判断文件类型
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const textExts = ['php','js','ts','jsx','tsx','py','java','go','rs','c','cpp','h','css','html','htm','xml','json','yaml','yml','md','txt','sql','sh','bash','conf','ini','env','gitignore','htaccess','vue','svelte','rb','swift','kt','toml','log','tpl','twig','blade'];
+  const imgExts = ['png','jpg','jpeg','gif','webp','svg','ico','bmp'];
+  const isText = textExts.includes(ext);
+  const isImg = imgExts.includes(ext);
+  try {
+    if (isImg) {
+      const r = await apiCall('download', { scope, path });
+      if (!r.ok) { contentEl.innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(r.message||r.error)}</div>`; return; }
+      const bin = atob(r.content_b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes]);
+      const url = URL.createObjectURL(blob);
+      contentEl.innerHTML = `<div style="text-align:center;padding:20px"><img src="${url}" style="max-width:100%;max-height:70vh;border-radius:8px" onload="URL.revokeObjectURL('${url}')"></div>`;
+      footerEl.innerHTML = `<span>图片预览</span><span>${esc(path)}</span>`;
+    } else if (isText) {
+      // 使用 read_range 分段加载
+      const r = await apiCall('read_range', { scope, path, start_line: 1, count: 200 });
+      if (!r.ok) { contentEl.innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(r.message||r.error)}</div>`; return; }
+      const lines = (r.content || []).map(c => c.text);
+      const totalLines = r.total_lines || lines.length;
+      const truncated = r.truncated;
+      // 简单语法高亮
+      const highlighted = lines.map((line, idx) => {
+        let h = esc(line);
+        // 注释
+        if (/^\s*(\/\/|#|\/\*|\*|--)/.test(line)) h = `<span style="color:var(--text-faint)">${h}</span>`;
+        // 字符串
+        else h = h.replace(/(&quot;[^&]*?&quot;|&#039;[^&]*?&#039;)/g, '<span style="color:var(--green)">$1</span>');
+        // 关键词
+        h = h.replace(/\b(function|const|let|var|class|if|else|for|while|return|import|export|require|module|new|try|catch|throw|async|await|public|private|protected|static|void|int|string|bool|boolean|array|null|true|false|undefined|this|self|parent|echo|print|include|require|namespace|use|extends|implements|interface|abstract|final)\b/g, '<span style="color:var(--accent)">$1</span>');
+        return `<div style="padding:0 12px;white-space:pre;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;line-height:1.6;color:#c9d1d9;border-left:2px solid transparent" onmouseover="this.style.borderLeftColor='var(--accent)'" onmouseout="this.style.borderLeftColor='transparent'"><span style="color:var(--text-faint);min-width:40px;display:inline-block;user-select:none">${idx + 1}</span> ${h || ' '}</div>`;
+      }).join('');
+      contentEl.innerHTML = `<div style="background:#0d1117;padding:8px 0">${highlighted}</div>`;
+      footerEl.innerHTML = `<span>第 1-${lines.length} 行 / 共 ${totalLines} 行${truncated ? ' (仅显示前 200 行)' : ''}</span><span>${esc(path)}</span>`;
+      if (truncated && totalLines > 200) {
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = 'btn btn-sm';
+        loadMoreBtn.style.cssText = 'background:var(--bg-hover);border:1px solid var(--border);color:var(--text);margin:8px 20px';
+        loadMoreBtn.textContent = `加载更多 (剩余 ${totalLines - 200} 行)`;
+        loadMoreBtn.onclick = async () => {
+          loadMoreBtn.textContent = '加载中...';
+          loadMoreBtn.disabled = true;
+          const r2 = await apiCall('read_range', { scope, path, start_line: 201, count: 2000 });
+          if (r2.ok) {
+            const moreLines = (r2.content || []).map(c => c.text);
+            const moreHtml = moreLines.map((line, idx) => {
+              let h = esc(line);
+              if (/^\s*(\/\/|#|\/\*|\*|--)/.test(line)) h = `<span style="color:var(--text-faint)">${h}</span>`;
+              else h = h.replace(/(&quot;[^&]*?&quot;|&#039;[^&]*?&#039;)/g, '<span style="color:var(--green)">$1</span>');
+              h = h.replace(/\b(function|const|let|var|class|if|else|for|while|return|import|export|require|module|new|try|catch|throw|async|await|public|private|protected|static|void|int|string|bool|boolean|array|null|true|false|undefined|this|self|parent|echo|print|include|require|namespace|use|extends|implements|interface|abstract|final)\b/g, '<span style="color:var(--accent)">$1</span>');
+              return `<div style="padding:0 12px;white-space:pre;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px;line-height:1.6;color:#c9d1d9;border-left:2px solid transparent" onmouseover="this.style.borderLeftColor='var(--accent)'" onmouseout="this.style.borderLeftColor='transparent'"><span style="color:var(--text-faint);min-width:40px;display:inline-block;user-select:none">${idx + 201}</span> ${h || ' '}</div>`;
+            }).join('');
+            contentEl.querySelector('div').insertAdjacentHTML('beforeend', moreHtml);
+            loadMoreBtn.remove();
+            footerEl.querySelector('span').textContent = `第 1-${200 + moreLines.length} 行 / 共 ${totalLines} 行`;
+          }
+        };
+        contentEl.appendChild(loadMoreBtn);
+      }
+    } else {
+      // 二进制文件或未知类型
+      const statR = await apiCall('stat', { scope, path });
+      if (statR.ok) {
+        const info = statR.info || statR;
+        contentEl.innerHTML = `<div class="loading" style="padding:40px;text-align:center">
+          <div style="font-size:48px;margin-bottom:16px">📦</div>
+          <div style="color:var(--text-dim);font-size:13px">此文件类型 (.${esc(ext)}) 不支持在线预览</div>
+          <div style="color:var(--text-faint);font-size:12px;margin-top:8px">大小: ${fmtSize(info.size || 0)} · 修改: ${info.mtime ? new Date(info.mtime * 1000).toLocaleString() : '-'}</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="downloadFile('${esc(path)}','${esc(name)}')">⬇ 下载文件</button>
+        </div>`;
+        footerEl.innerHTML = `<span>二进制/未知类型</span><span>${esc(path)}</span>`;
+      }
+    }
+  } catch(e) {
+    contentEl.innerHTML = `<div class="loading" style="color:var(--red)">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+async function showRenameDialog(path, name) {
+  const scope = document.getElementById('fileScope').value;
+  const newName = prompt('重命名为:', name);
+  if (!newName || newName === name) return;
+  const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/') + 1) : '';
+  const to = parent + newName;
+  const r = await apiCall('rename', { scope, from: path, to });
+  if (r.ok) { toast('重命名成功: ' + name + ' → ' + newName, 'success'); loadFiles(); }
+  else toast('重命名失败: ' + (r.message || r.error), 'error');
+}
+
+async function showCopyDialog(path, name) {
+  const scope = document.getElementById('fileScope').value;
+  const newName = prompt('复制为:', name + '_copy');
+  if (!newName) return;
+  const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/') + 1) : '';
+  const to = parent + newName;
+  const r = await apiCall('copy', { scope, from: path, to });
+  if (r.ok) { toast('复制成功: ' + name + ' → ' + newName, 'success'); loadFiles(); }
+  else toast('复制失败: ' + (r.message || r.error), 'error');
+}
+
+// ========== 代码工具 ==========
+
+async function scanTodo() {
+  const scope = document.getElementById('todoScope').value;
+  const path = document.getElementById('todoPath').value.trim() || '.';
+  document.getElementById('todoResults').innerHTML = '<div class="loading">扫描中...</div>';
+  const r = await apiCall('todo', { scope, path });
+  if (!r.ok) { document.getElementById('todoResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const items = r.items || [];
+  if (!items.length) { document.getElementById('todoResults').innerHTML = '<div class="loading">✅ 未发现 TODO/FIXME 注释</div>'; return; }
+  const byTag = r.by_tag || {};
+  let html = `<div style="margin-bottom:8px;color:var(--text-dim);font-size:12px">找到 ${r.total||items.length} 条 (扫描 ${r.files_scanned||0} 文件) — ${Object.entries(byTag).map(([k,v])=>`${k}=${v}`).join(', ')}</div>`;
+  html += '<table><thead><tr><th>文件</th><th>行</th><th>标签</th><th>内容</th></tr></thead><tbody>';
+  for (const it of items.slice(0, 100)) {
+    const tagColor = { TODO: 'var(--blue)', FIXME: 'var(--red)', HACK: 'var(--yellow)', XXX: 'var(--yellow)', NOTE: 'var(--green)', BUG: 'var(--red)' }[it.tag] || 'var(--text-dim)';
+    html += `<tr><td style="font-family:monospace;font-size:11px">${esc(it.path)}</td><td>${it.line}</td><td><span class="perm-tag" style="background:${tagColor}33;color:${tagColor}">${esc(it.tag)}</span></td><td style="font-size:12px;color:var(--text-dim)">${esc((it.note||it.text||'').substring(0,80))}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  if (items.length > 100) html += `<div class="loading">⚠ 仅显示前 100 条，共 ${items.length} 条</div>`;
+  document.getElementById('todoResults').innerHTML = html;
+}
+
+async function codeStats() {
+  const scope = document.getElementById('statsScope').value;
+  const path = document.getElementById('statsPath').value.trim() || '.';
+  document.getElementById('statsResults').innerHTML = '<div class="loading">统计中...</div>';
+  const r = await apiCall('stats', { scope, path });
+  if (!r.ok) { document.getElementById('statsResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  let html = '<div class="stats-grid">';
+  html += `<div class="stat-box"><div class="label">文件数</div><div class="value">${r.total_files||0}</div></div>`;
+  html += `<div class="stat-box"><div class="label">总行数</div><div class="value">${r.total_lines||0}</div></div>`;
+  html += `<div class="stat-box"><div class="label">代码行</div><div class="value">${r.total_code||0}</div></div>`;
+  html += `<div class="stat-box"><div class="label">注释行</div><div class="value">${r.total_comment||0}</div></div>`;
+  html += `<div class="stat-box"><div class="label">空白行</div><div class="value">${r.total_blank||0}</div></div>`;
+  html += `<div class="stat-box"><div class="label">总大小</div><div class="value">${fmtSize(r.total_bytes||0)}</div></div>`;
+  html += '</div>';
+  if (r.groups && r.groups.length) {
+    html += '<table style="margin-top:12px"><thead><tr><th>扩展名/目录</th><th>文件数</th><th>行数</th><th>大小</th></tr></thead><tbody>';
+    for (const g of r.groups.slice(0, 20)) {
+      html += `<tr><td><code>${esc(g.name||g.key||'')}</code></td><td>${g.files||0}</td><td>${g.lines||0}</td><td>${fmtSize(g.bytes||0)}</td></tr>`;
+    }
+    html += '</tbody></table>';
+  }
+  document.getElementById('statsResults').innerHTML = html;
+}
+
+async function lintFile() {
+  const scope = document.getElementById('lintScope').value;
+  const path = document.getElementById('lintPath').value.trim();
+  if (!path) { toast('请输入文件路径', 'error'); return; }
+  document.getElementById('lintResults').innerHTML = '<div class="loading">检查中...</div>';
+  const r = await apiCall('lint', { scope, path });
+  if (!r.ok) { document.getElementById('lintResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  if (r.syntax_ok) {
+    document.getElementById('lintResults').innerHTML = `<div style="color:var(--green);padding:12px">✅ 语法检查通过 (${esc(r.language||'')})</div>`;
+  } else {
+    let html = `<div style="color:var(--red);padding:12px">❌ 发现 ${r.issues?.length||0} 个问题 (${esc(r.language||'')})</div>`;
+    if (r.issues) {
+      html += '<table><thead><tr><th>行</th><th>级别</th><th>规则</th><th>信息</th></tr></thead><tbody>';
+      for (const is of r.issues) {
+        const sevColor = is.severity === 'error' ? 'var(--red)' : is.severity === 'warning' ? 'var(--yellow)' : 'var(--blue)';
+        html += `<tr><td>${is.line||'?'}</td><td><span style="color:${sevColor}">${esc(is.severity||'')}</span></td><td><code>${esc(is.rule||'')}</code></td><td style="font-size:12px">${esc(is.message||'')}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    document.getElementById('lintResults').innerHTML = html;
+  }
+}
+
+// NEW-R12: lint_batch — 整个目录一次预检, 免去逐文件点检查
+async function lintBatch() {
+  const scope = document.getElementById('lbScope').value;
+  const path = document.getElementById('lbPath').value.trim() || '.';
+  const pattern = document.getElementById('lbPattern').value.trim();
+  document.getElementById('lbResults').innerHTML = '<div class="loading">批量检查中...</div>';
+  // 先用 list 收集文件路径, 再交给 lint_batch
+  const ls = await apiCall('list', { scope, path, recursive: true, limit: 500 });
+  if (!ls.ok) { document.getElementById('lbResults').innerHTML = `<div class="loading">⚠ 列目录失败: ${esc(ls.message||ls.error)}</div>`; return; }
+  let files = (ls.items||[]).filter(i => i.type !== 'dir').map(i => i.path);
+  if (pattern) {
+    const re = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+    files = files.filter(p => re.test(p.split('/').pop() || p));
+  }
+  if (!files.length) { document.getElementById('lbResults').innerHTML = '<div class="loading">没有匹配的文件</div>'; return; }
+  const r = await apiCall('lint_batch', { scope, files, _timeout: 120000 });
+  if (!r.ok) { document.getElementById('lbResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  // FIX-R12: 实际字段是 ok/syntax_ok/issue_count/language(+失败时 first_error),
+  //   不是 help 旧文案里的 passed/output —— 照旧文案写会静默拿到 undefined
+  const results = r.results || [];
+  const bad = results.filter(x => !(x.syntax_ok ?? x.ok ?? x.passed));
+  let html = `<div style="margin-bottom:8px;color:var(--text-dim);font-size:12px">共 ${r.total||results.length} 个文件 · ${bad.length ? '<span style="color:var(--red)">' + bad.length + ' 个有问题</span>' : '<span style="color:var(--green)">全部通过</span>'}</div>`;
+  if (!bad.length) { document.getElementById('lbResults').innerHTML = html + '<div style="color:var(--green)">✅ 语法检查全部通过</div>'; return; }
+  html += '<table><thead><tr><th>文件</th><th style="width:70px">问题数</th><th>首个错误</th></tr></thead><tbody>';
+  for (const it of bad.slice(0, 100)) {
+    const msg = (it.first_error && (it.first_error.message || it.first_error.line))
+      ? `${it.first_error.message || ''}`
+      : (it.output || it.message || '');
+    html += `<tr><td style="font-family:monospace;font-size:11px">${esc(it.path)}</td><td style="color:var(--red)">${it.issue_count ?? it.issue_count ?? '?'}</td><td style="font-size:12px;color:var(--text-dim);white-space:pre-wrap">${esc(String(msg).substring(0,300))}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('lbResults').innerHTML = html;
+}
+
+// NEW-R12: format — 服务端已有格式化能力, 面板此前没有入口
+async function formatFile(write) {
+  const scope = document.getElementById('fmtScope').value;
+  const path = document.getElementById('fmtPath').value.trim();
+  if (!path) { toast('请输入文件路径', 'error'); return; }
+  if (write && !confirm(`确认把格式化结果写回 ${path}？\n(会先自动备份)`)) return;
+  document.getElementById('fmtResults').innerHTML = '<div class="loading">格式化中...</div>';
+  const r = await apiCall('format', { scope, path, write: !!write, _timeout: 60000 });
+  if (!r.ok) { document.getElementById('fmtResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const head = `<div style="margin-bottom:8px">${r.changed ? '<span style="color:var(--yellow)">有变更</span>' : '<span style="color:var(--green)">已是格式化状态</span>'} · 写回: ${r.written ? '✅ 已落盘' : '❌ 仅预览'}</div>`;
+  // FIX-R12: 实际字段是 content(不是旧文案里的 formatted)
+  const src = r.formatted != null ? r.formatted : r.content;
+  const body = src != null
+    ? `<pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;max-height:420px;overflow:auto">${esc(String(src).substring(0, 8000))}</pre>`
+    : '<div class="loading">无预览内容</div>';
+  document.getElementById('fmtResults').innerHTML = head + body;
+  toast(write ? (r.written ? '已格式化并写回' : '格式化失败') : '预览已生成', r.ok ? 'success' : 'error');
+}
+
+async function genApiDoc(format) {
+  document.getElementById('docResults').innerHTML = '<div class="loading">生成中...</div>';
+  const r = await apiCall('doc', { format });
+  if (!r.ok) { document.getElementById('docResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  if (format === 'json') {
+    const json = JSON.stringify(r.actions || r, null, 2);
+    document.getElementById('docResults').innerHTML = `<pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:11px;overflow-x:auto;max-height:500px;overflow-y:auto">${esc(json)}</pre>`;
+  } else {
+    document.getElementById('docResults').innerHTML = `<pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:12px;overflow-x:auto;max-height:500px;overflow-y:auto;white-space:pre-wrap">${esc(r.content||'')}</pre>`;
+  }
+}
+
+// ========== 代码片段 ==========
+
+async function loadSnippets() {
+  const filter = document.getElementById('snFilter')?.value?.trim() || '';
+  const r = await apiCall('snippet_list', { keyword: filter });
+  if (!r.ok) { document.getElementById('snippetsList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const snippets = r.snippets || [];
+  document.getElementById('snippetBadge').textContent = snippets.length + ' 个';
+  if (!snippets.length) { document.getElementById('snippetsList').innerHTML = '<div class="loading">暂无片段</div>'; return; }
+  let html = '<table><thead><tr><th>名称</th><th>语言</th><th>标签</th><th>大小</th><th>更新时间</th><th>操作</th></tr></thead><tbody>';
+  for (const sn of snippets) {
+    html += `<tr><td><strong>${esc(sn.name)}</strong></td><td><code>${esc(sn.language||'plain')}</code></td><td>${(sn.tags||[]).map(t=>`<span class="perm-tag" style="background:var(--blue)22;color:var(--blue)">${esc(t)}</span>`).join(' ')}</td><td>${fmtSize(sn.size||0)}</td><td style="font-size:11px;color:var(--text-dim)">${sn.updated_at?new Date(sn.updated_at*1000).toLocaleString():'-'}</td><td><button class="icon-btn" onclick="viewSnippet('${esc(sn.name)}')" title="查看">👁</button><button class="icon-btn danger" onclick="deleteSnippet('${esc(sn.name)}')" title="删除">🗑</button></td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('snippetsList').innerHTML = html;
+}
+
+async function viewSnippet(name) {
+  const r = await apiCall('snippet_get', { name });
+  if (!r.ok) { toast('获取失败: ' + (r.message||r.error), 'error'); return; }
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:700px;width:90%;max-height:80vh;overflow-y:auto;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+  div.innerHTML = `<h3 style="margin:0 0 8px;color:var(--accent)">${esc(name)} <code style="font-size:12px">${esc(r.language||'plain')}</code></h3>${r.description?`<p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">${esc(r.description)}</p>`:''}<pre style="background:var(--bg);border-radius:8px;padding:12px;font-size:12px;overflow-x:auto;max-height:400px;overflow-y:auto">${esc(r.content||'')}</pre><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="this.parentElement.remove()">关闭</button>`;
+  document.body.appendChild(div);
+}
+
+async function saveSnippet() {
+  const name = document.getElementById('sn_name').value.trim();
+  const content = document.getElementById('sn_content').value;
+  if (!name || !content) { toast('请填写名称和代码内容', 'error'); return; }
+  const language = document.getElementById('sn_lang').value;
+  const tags = document.getElementById('sn_tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const description = document.getElementById('sn_desc').value.trim();
+  const r = await apiCall('snippet_set', { name, content, language, tags, description });
+  if (r.ok) {
+    toast('片段已保存: ' + name, 'success');
+    document.getElementById('sn_name').value=''; document.getElementById('sn_content').value=''; document.getElementById('sn_tags').value=''; document.getElementById('sn_desc').value='';
+    loadSnippets();
+  } else toast('保存失败: ' + (r.message||r.error), 'error');
+}
+
+async function deleteSnippet(name) {
+  if (!confirm(`确认删除片段 "${name}"？`)) return;
+  const r = await apiCall('snippet_delete', { name });
+  if (r.ok) { toast('已删除: ' + name, 'success'); loadSnippets(); }
+  else toast('删除失败: ' + (r.message||r.error), 'error');
+}
+
+// ========== Webhook 管理 ==========
+
+async function loadWebhooks() {
+  const r = await apiCall('webhook_list');
+  if (!r.ok) { document.getElementById('webhooksList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const hooks = r.hooks || [];
+  document.getElementById('webhookBadge').textContent = hooks.length + ' 个';
+  if (!hooks.length) { document.getElementById('webhooksList').innerHTML = '<div class="loading">暂无 Webhook</div>'; return; }
+  let html = '<table><thead><tr><th>ID</th><th>URL</th><th>事件</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+  for (const wh of hooks) {
+    const failColor = (wh.fail_count||0) > 0 ? 'var(--red)' : 'var(--green)';
+    html += `<tr><td><code style="font-size:11px">${esc(wh.id||'')}</code></td><td style="font-family:monospace;font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis">${esc(wh.url||'')}</td><td>${(wh.events||[]).map(e=>`<span class="perm-tag" style="background:var(--blue)22;color:var(--blue)">${esc(e)}</span>`).join(' ')}</td><td><span style="color:${failColor}">${(wh.fail_count||0)>0?'❌ '+(wh.fail_count||0)+' 失败':'✅ 正常'}</span></td><td style="white-space:nowrap"><button class="btn btn-sm" onclick="testWebhook('${esc(wh.url||'')}')" title="发送测试请求验证可达性" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text)">🧪 测试</button> <button class="btn btn-danger btn-sm" onclick="deleteWebhook('${esc(wh.id)}')">删除</button></td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('webhooksList').innerHTML = html;
+}
+
+async function addWebhook() {
+  const url = document.getElementById('wh_url').value.trim();
+  if (!url) { toast('请填写回调 URL', 'error'); return; }
+  const events = document.getElementById('wh_events').value.split(',');
+  const secret = document.getElementById('wh_secret').value.trim();
+  const r = await apiCall('webhook_set', { url, events, secret: secret || undefined });
+  if (r.ok) {
+    toast('Webhook 已注册: ' + r.id, 'success');
+    document.getElementById('wh_url').value=''; document.getElementById('wh_secret').value='';
+    loadWebhooks();
+  } else toast('注册失败: ' + (r.message||r.error), 'error');
+}
+
+async function deleteWebhook(id) {
+  if (!confirm(`确认删除 Webhook ${id}？`)) return;
+  const r = await apiCall('webhook_delete', { id });
+  if (r.ok) { toast('已删除: ' + id, 'success'); loadWebhooks(); }
+  else toast('删除失败: ' + (r.message||r.error), 'error');
+}
+
+// NEW-R12: webhook_test — 注册了却没法验证可达, 只能等真实事件触发才知道配错
+async function testWebhook(url) {
+  const target = (url != null && url !== '' && url !== 'undefined')
+    ? url : document.getElementById('wh_url').value.trim();
+  if (!target) { toast('请填写或选择一个回调 URL', 'error'); return; }
+  toast('测试中...', 'info');
+  const r = await apiCall('webhook_test', { url: target, path: 'admin-webhook-test.txt' });
+  const box = document.getElementById('webhookTestOut') || document.getElementById('webhooksList');
+  const detail = r.ok
+    ? `${r.passed ? '✅ 可达' : '❌ 不可达'} · HTTP ${r.http_code ?? '-'} · ${r.total_time ?? '-'}s · ${esc(r.url||target)}${r.curl_error ? ' · ' + esc(r.curl_error) : ''}${r.tip ? '\n💡 ' + esc(r.tip) : ''}`
+    : `⚠ ${esc(r.message||r.error)}`;
+  const out = document.getElementById('webhookTestOut');
+  if (out) {
+    out.style.display = 'block';
+    out.textContent = detail;
+  }
+  toast(detail.replace(/\n/g, ' '), r.ok && r.passed ? 'success' : 'error');
+}
+
+// ========== API 契约浏览器 (NEW-R12) ==========
+let AC_ACTIONS = []; // [{n,d,r}]
+
+async function loadApiContracts() {
+  document.getElementById('acList').innerHTML = '<div class="loading">加载中...</div>';
+  const r = await apiCall('help');
+  if (!r.ok) { document.getElementById('acList').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  AC_ACTIONS = r.actions || [];
+  document.getElementById('acBadge').textContent = AC_ACTIONS.length + ' 个 action';
+  filterApiContracts();
+}
+
+function filterApiContracts() {
+  const q = (document.getElementById('acFilter').value || '').trim().toLowerCase();
+  const list = AC_ACTIONS.filter(a => !q || (a.n||'').toLowerCase().includes(q) || (a.d||'').toLowerCase().includes(q));
+  if (!list.length) { document.getElementById('acList').innerHTML = '<div class="loading">无匹配</div>'; return; }
+  let html = '<table><thead><tr><th style="width:170px">Action</th><th>描述</th><th style="width:190px">必填参数</th></tr></thead><tbody>';
+  for (const a of list) {
+    const req = (a.r || []).map(x => String(x).split(':')[0]).join(', ');
+    html += `<tr style="cursor:pointer" onclick="showApiContract('${esc(a.n)}')"><td><code style="color:var(--accent)">${esc(a.n)}</code></td><td style="font-size:12px;color:var(--text-dim)">${esc(a.d||'')}</td><td style="font-family:monospace;font-size:11px">${esc(req)||'<span style="color:var(--text-dim)">无</span>'}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('acList').innerHTML = html;
+}
+
+async function showApiContract(name) {
+  document.getElementById('acDetailBadge').textContent = name;
+  document.getElementById('acDetail').innerHTML = '<div class="loading">加载中...</div>';
+  const r = await apiCall('help', { name });
+  if (!r.ok) { document.getElementById('acDetail').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const row = (k, v) => `<tr><th style="width:110px;text-align:left;color:var(--text-dim);font-weight:500">${k}</th><td>${v}</td></tr>`;
+  const ex = r.example ? `<pre style="background:var(--bg);border-radius:8px;padding:10px;font-size:11px;overflow:auto;margin:0">${esc(JSON.stringify(r.example, null, 2))}</pre>` : '<span style="color:var(--text-dim)">无</span>';
+  const errs = Array.isArray(r.errors)
+    ? r.errors.map(e => `<div style="font-size:12px">${esc(String(e))}</div>`).join('')
+    : `<pre style="font-size:11px;margin:0">${esc(JSON.stringify(r.errors||{}, null, 2))}</pre>`;
+  const see = (r.see_also || []).map(s => `<code style="margin-right:6px;cursor:pointer;color:var(--accent)" onclick="showApiContract('${esc(s)}')">${esc(s)}</code>`).join('');
+  let html = '<table style="font-size:13px;line-height:1.9">';
+  html += row('描述', esc(r.desc || r.d || ''));
+  html += row('必填', (r.required||[]).length ? (r.required||[]).map(x=>`<code style="margin-right:6px">${esc(String(x))}</code>`).join('') : '<span style="color:var(--text-dim)">无</span>');
+  html += row('可选', (r.optional||[]).length ? (r.optional||[]).map(x=>`<div style="font-size:12px">${esc(String(x))}</div>`).join('') : '<span style="color:var(--text-dim)">无</span>');
+  html += row('返回', `<code style="font-size:11px">${esc(String(r.returns||''))}</code>`);
+  html += row('示例', ex);
+  html += row('错误码', errs);
+  if (see) html += row('参见', see);
+  html += '</table>';
+  document.getElementById('acDetail').innerHTML = html;
+}
+
+// ========== 错误日志 ==========
+
+async function loadErrorLogList() {
+  const r = await apiCall('error_log_list');
+  if (!r.ok) { document.getElementById('errorLogResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const logs = r.logs || [];
+  const sel = document.getElementById('logName');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">选择日志...</option>' + logs.map(l =>
+    `<option value="${esc(l.name)}">${esc(l.name)} (${fmtSize(l.size||0)})</option>`
+  ).join('');
+  if (cur) sel.value = cur;
+}
+
+async function loadErrorLog() {
+  const name = document.getElementById('logName').value;
+  if (!name) { document.getElementById('errorLogResults').innerHTML = '<div class="loading">请选择日志</div>'; return; }
+  const grep = document.getElementById('logGrep').value.trim();
+  const lines = parseInt(document.getElementById('logLines').value) || 100;
+  document.getElementById('errorLogResults').innerHTML = '<div class="loading">加载中...</div>';
+  const r = await apiCall('error_log', { name, lines, grep: grep || undefined });
+  if (!r.ok) { document.getElementById('errorLogResults').innerHTML = `<div class="loading">⚠ ${esc(r.message||r.error)}</div>`; return; }
+  const logLines = r.lines || [];
+  if (!logLines.length) { document.getElementById('errorLogResults').innerHTML = '<div class="loading">无匹配日志</div>'; return; }
+  let html = `<div style="margin-bottom:8px;color:var(--text-dim);font-size:12px">${esc(r.name||name)} — ${logLines.length} 行 (共 ${r.size?fmtSize(r.size):'?'} / ${r.format||'text'})</div>`;
+  html += '<div class="terminal" style="max-height:500px;overflow-y:auto;font-size:11px;line-height:1.6">';
+  for (const line of logLines) {
+    const text = typeof line === 'string' ? line : (line.text || line.line || JSON.stringify(line));
+    let color = 'var(--text)';
+    if (/error|fatal|exception/i.test(text)) color = 'var(--red)';
+    else if (/warn/i.test(text)) color = 'var(--yellow)';
+    else if (/notice|info/i.test(text)) color = 'var(--blue)';
+    html += `<div style="color:${color}">${esc(text)}</div>`;
+  }
+  html += '</div>';
+  document.getElementById('errorLogResults').innerHTML = html;
+}
+</script>
+</body>
+</html>
