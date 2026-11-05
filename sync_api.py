@@ -256,6 +256,23 @@ HELP_SPEC = {
         'ret': 'actions{name:count},errors[{code,count}],total,since,last_ts',
         'see': ['admin_stats', 'audit_log'],
     },
+    'bootstrap_status': {
+        'd': '首次启动状态: 配置文件是否已初始化(无需 token; 面板打开时先调它判断走登录还是初始化)',
+        'r': [],
+        'eg': {'action': 'bootstrap_status'},
+        'ret': 'initialized,config_file,config_dir_writable,suggested_work_dir,api_version',
+        'see': ['bootstrap'],
+    },
+    'bootstrap': {
+        'd': '一键创建 sync_config.json(无需 token; 仅配置文件不存在时可用, 创建后立即失效)',
+        'r': [],
+        'o': ['admin_token:str 管理员密码(留空自动生成 40 hex)',
+              'scope_name:str 默认目录名(默认 default)',
+              'work_dir:str 工作目录(默认 <服务端目录>/workspace)'],
+        'eg': {'action': 'bootstrap', 'admin_token': ''},
+        'ret': 'admin_token(仅本次显示),scope_name,work_dir,config_file,warning',
+        'see': ['bootstrap_status'],
+    },
     'help': {
         'd': '自描述: 无参返回全部 action 索引; 传 name=<action> 返回该 action 的参数契约、示例与返回字段',
         'r': [],

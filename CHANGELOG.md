@@ -7,6 +7,12 @@
 
 ---
 
+## 未发布 — 首次部署一键初始化（2026-11-05）
+
+- **新增 `bootstrap` / `bootstrap_status`（无需 token，鉴权之前执行）**：首次部署不再手写 sync_config.json —— 打开 admin.html 自动进入初始化卡片，留空 admin_token 自动生成 40 hex，自动创建默认 scope 与工作目录；配置一旦存在立即失效（1002 already_initialized）。
+- 双服务端 action 契约同步：67 → **69**。
+- admin.html 启动时先探测配置状态，未初始化显示向导而非登录框；初始化成功后免输入直接登录。
+
 ## 未发布 — 扩展缺失全部降级（2026-11-05）
 
 服务端 `sync_api.php` / `admin.html` 与 4 个 tools 文件；客户端 `sync.py` 未改（`whoami.client_md5` 不变，不触发自动升级）。

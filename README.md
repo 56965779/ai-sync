@@ -2,7 +2,7 @@
 
 > **给 AI 用的服务器遥控器 —— 一个文件，替掉整套 SSH 手工活。**
 >
-> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **67 个带 JSON 契约的远程能力**：
+> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **69 个带 JSON 契约的远程能力**：
 > 读文件、找代码、改代码、跑命令、部署、回滚。输出恒为 `{"ok":true,...}`，
 > Agent 不用 SSH、不用猜输出、不用怕改错 —— 每步都能预览、校验、复验、一键撤销。
 
@@ -17,7 +17,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 
 **AI 专用 · 跨设备 · 跨平台 · 零依赖**：笔记本、手机 Termux、容器、CI runner、另一台服务器，装好服务端就能用。
 
-`MIT` · `Python 3.8+` · `PHP 8.0+` · `67 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
+`MIT` · `Python 3.8+` · `PHP 8.0+` · `69 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
 
 [![CI](https://github.com/56965779/ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/56965779/ai-sync/actions/workflows/ci.yml)
 
@@ -70,7 +70,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 ```
 ai-sync/
 ├── sync.py                    # 客户端（单文件、零依赖）+ 服务端分发用的参考客户端
-├── sync_api.php               # PHP 服务端入口（67 action 路由 + 鉴权 + 审计）
+├── sync_api.php               # PHP 服务端入口（69 action 路由 + 鉴权 + 审计，其中 bootstrap_* 在鉴权之前）
 ├── sync_api.py                # Python 服务端（协议对齐实现）
 ├── sync_config.example.json   # 服务端配置模板（全部 token 为 CHANGE_ME_* 占位符）
 ├── sync.conf.example          # 客户端配置模板
@@ -180,6 +180,7 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 - **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`、`zip`、`curl`
   缺了不会把功能弄死，会**自动降级**并在面板「环境自检」标黄：`mbstring` → 截断改 `substr/stripos`（中文可能少一个字）；`zip` → 用**内置纯 PHP 打包器**(不压缩，包变大但可正常解压)；`curl` → `webhook_test`/`batch_deploy` 退到 stream（失去 IP 固定）。装齐即可回到完整行为
+- **首次部署不用手写配置**：直接打开 `admin.html`，没有 `sync_config.json` 时会自动进入初始化向导（admin_token 留空自动生成）；已配置过则直接进登录框。向导只生效一次。
 - **装完扩展必须重启 PHP 进程**（`php -S` 重启、`php-fpm` reload）：扩展只在进程启动时加载，只 `apt install` 不重启等于没装（实测踩过）。面板「环境自检 → 重新检测」能直接告诉你还缺什么
 - 一个把 `.php` 交给 php-fpm 的 Web 服务；**只在本机验证**时不用装 nginx，直接用 `php -S`
 
@@ -187,7 +188,7 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 ```
 <WEB_ROOT>/server/
-├── sync_api.php      ← 唯一对外暴露的入口，67 个 action 都走它
+├── sync_api.php      ← 唯一对外暴露的入口，69 个 action 都走它
 ├── sync.py           ← 分发版客户端，必须同目录：whoami.client_md5 拿它算 MD5
 ├── tools/            ← 11 个 PHP 工具模块，按需加载，路径写死为「入口同目录/tools/」
 ├── sync_config.json  ← 或用 AI_SYNC_CONFIG_FILE 外移
@@ -232,7 +233,7 @@ curl -s -X POST http://127.0.0.1:8899/sync_api.php \
   -d '{"action":"ping","token":"<客户端token>","scope":"works"}'
 ```
 
-返回 `{"ok":true,"code":0,...}`、带 `version` 与 67 个 action 清单即成功（PHP 8.1.2 实测 200）。
+返回 `{"ok":true,"code":0,...}`、带 `version` 与 action 清单即成功（PHP 8.1.2 实测 200）。
 再用浏览器开 `http://127.0.0.1:8899/admin.html`，能看到登录页。
 
 ---
@@ -297,7 +298,7 @@ API_URL = "https://your-server.example:5443/sync_api.php"  # HTTPS
 
 ## 2.4 管理面板 `admin.html`（人工巡检用，可选）
 
-纯静态单页，不用构建。它只是同一套 67 个 action 的可视化壳。
+纯静态单页，不用构建。它只是同一套 69 个 action 的可视化壳。
 
 ### 放哪、怎么打开
 

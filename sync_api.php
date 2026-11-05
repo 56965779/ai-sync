@@ -383,6 +383,23 @@ $GLOBALS['HELP_SPEC'] = [
         'ret' => 'actions{name:count},errors[{code,count}],total,since,last_ts',
         'see' => ['admin_stats', 'audit_log'],
     ],
+    'bootstrap_status' => [
+        'd' => '首次启动状态: 配置文件是否已初始化(无需 token; 面板打开时先调它判断走登录还是初始化)',
+        'r' => [],
+        'eg' => ['action' => 'bootstrap_status'],
+        'ret' => 'initialized,config_file,config_dir_writable,suggested_work_dir,api_version',
+        'see' => ['bootstrap'],
+    ],
+    'bootstrap' => [
+        'd' => '一键创建 sync_config.json(无需 token; 仅配置文件不存在时可用, 创建后立即失效)',
+        'r' => [],
+        'o' => ['admin_token:str 管理员密码(留空自动生成 40 hex)',
+               'scope_name:str 默认目录名(默认 default)',
+               'work_dir:str 工作目录(默认 <服务端目录>/workspace)'],
+        'eg' => ['action' => 'bootstrap', 'admin_token' => ''],
+        'ret' => 'admin_token(仅本次显示),scope_name,work_dir,config_file,warning',
+        'see' => ['bootstrap_status'],
+    ],
     'help' => [
         'd' => '自描述: 无参返回全部 action 索引; 传 name=<action> 返回该 action 的参数契约、示例与返回字段',
         'r' => [],
@@ -1737,6 +1754,92 @@ $body = json_decode($raw_body, true);
 if (!is_array($body)) {
     audit_log('', [], $E['INVALID_PARAM'], ['reason' => 'bad_json']);
     echo json_encode(fail($E['INVALID_PARAM'], 'bad_json', 'Request body must be a JSON object'));
+    exit;
+}
+
+// ==================== 首次启动一键初始化 (无需 token, 必须在鉴权之前) ====================
+$__b_action = (isset($body['action']) && is_string($body['action'])) ? $body['action'] : '';
+if ($__b_action === 'bootstrap_status' || $__b_action === 'bootstrap') {
+    $__cfg_exists = file_exists($CONFIG_FILE);
+    $__cfg_dir    = dirname($CONFIG_FILE);
+    $__dir_ok     = is_dir($__cfg_dir) && is_writable($__cfg_dir);
+    if ($__b_action === 'bootstrap_status') {
+        echo json_encode([
+            'ok' => true, 'code' => 0,
+            'initialized'         => $__cfg_exists,
+            'config_file'         => $CONFIG_FILE,
+            'config_dir_writable' => $__dir_ok,
+            'suggested_work_dir'  => rtrim(str_replace('\\', '/', __DIR__), '/') . '/workspace',
+            'api_version'         => $CONFIG['API_VERSION'],
+            'hint' => $__cfg_exists ? '' : '配置文件不存在: 用管理面板一键初始化, 或 POST {"action":"bootstrap"}',
+        ]);
+        exit;
+    }
+    if ($__cfg_exists) {
+        echo json_encode(fail($E['FORBIDDEN'], 'already_initialized',
+            '配置文件已存在: bootstrap 仅首次部署可用, 请用 admin_token 登录'));
+        exit;
+    }
+    if (!$__dir_ok) {
+        echo json_encode(fail($E['INVALID_PARAM'], 'config_dir_not_writable',
+            $__cfg_dir . ' 不可写: 请先修正目录权限', ['hint' => 'web 进程需要能在该目录创建 sync_config.json']));
+        exit;
+    }
+    $admin_token = trim((string)($body['admin_token'] ?? ''));
+    if ($admin_token === '') {
+        try { $admin_token = bin2hex(random_bytes(20)); }
+        catch (Throwable $__e) { $admin_token = bin2hex(openssl_random_pseudo_bytes(20)); }
+    } elseif (strlen($admin_token) < 12) {
+        echo json_encode(fail($E['INVALID_PARAM'], 'admin_token_too_short',
+            'admin_token 至少 12 位(留空则自动生成)'));
+        exit;
+    }
+    $scope_name = trim((string)($body['scope_name'] ?? 'default'));
+    if (!preg_match('/^[a-zA-Z0-9._-]{1,32}$/', $scope_name)) $scope_name = 'default';
+    $work_dir = trim((string)($body['work_dir'] ?? ''));
+    $base_dir = rtrim(str_replace('\\', '/', __DIR__), '/');
+    if ($work_dir === '') $work_dir = $base_dir . '/workspace';
+    if (!preg_match('#^/|[A-Za-z]:[\\/]#', $work_dir)) $work_dir = $base_dir . '/' . ltrim($work_dir, '/');
+    $work_dir = rtrim(str_replace('\\', '/', $work_dir), '/');
+    if (!is_dir($work_dir)) { @mkdir($work_dir, 0775, true); }
+    if (!is_dir($work_dir) || !is_writable($work_dir)) {
+        echo json_encode(fail($E['INVALID_PARAM'], 'work_dir_not_writable',
+            $work_dir . ' 不可创建/不可写', ['hint' => '换成一个 web 进程可写的绝对路径']));
+        exit;
+    }
+    $scope = default_scope_config();
+    $scope['work_dir'] = $work_dir . '/';
+    $pkg_dir = $base_dir . '/packages';
+    @mkdir($pkg_dir, 0775, true);
+    $cfg = [
+        'version' => $CONFIG['API_VERSION'],
+        'global'  => [
+            'allow_ips'       => [],
+            'rate_limit'      => ['enabled' => false, 'per_token_per_minute' => 300,
+                                  'per_ip_per_second' => 20, 'upload_per_minute' => 60],
+            'exec_enabled'    => true,
+            'package_dir'     => $pkg_dir,
+        ],
+        'admin_token' => $admin_token,
+        'tokens'       => json_decode('{}'),
+        'scopes'      => [$scope_name => $scope],
+    ];
+    if (!save_sync_config($cfg)) {
+        echo json_encode(fail(1013, 'save_config_fail', '写入 sync_config.json 失败(目录不可写或磁盘满)'));
+        exit;
+    }
+    audit_log('bootstrap', $body, 0, ['scope' => $scope_name, 'work_dir' => $work_dir,
+        'auto_token' => (strlen((string)($body['admin_token'] ?? '')) < 12)]);
+    echo json_encode([
+        'ok' => true, 'code' => 0,
+        'admin_token' => $admin_token,
+        'scope_name'  => $scope_name,
+        'work_dir'    => $work_dir . '/',
+        'config_file' => $CONFIG_FILE,
+        'warning'     => ($__cfg_dir === $base_dir)
+            ? '配置在 Web 根目录: 建议之后移到 Web 根外并设 AI_SYNC_CONFIG_FILE, 否则 admin_token 可能被静态下载' : '',
+        'next'       => '请立即保存 admin_token, 然后刷新页面登录',
+    ]);
     exit;
 }
 

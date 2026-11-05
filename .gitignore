@@ -66,3 +66,6 @@ desktop.ini
 .vscode/
 *.swp
 *~
+workspace/
+packages/
+sync_config.json*.lock

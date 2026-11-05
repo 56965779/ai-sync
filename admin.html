@@ -238,6 +238,25 @@ tr .row-actions button{margin-left:4px}
   </div>
 </div>
 
+<!-- 首次启动: 配置文件不存在时的一键初始化 -->
+<div class="login-wrap" id="bootstrapPage" style="display:none">
+  <div class="login-card">
+    <h1>首次使用 · 初始化</h1>
+    <p id="bootstrapHint">还没有 sync_config.json，一键创建即可（admin_token 留空会自动生成）</p>
+    <input type="password" id="bsToken" placeholder="admin_token（留空自动生成）" autocomplete="off">
+    <input type="text" id="bsScope" placeholder="scope 目录名（默认 default）" value="default" autocomplete="off">
+    <input type="text" id="bsWorkDir" placeholder="工作目录绝对路径" autocomplete="off">
+    <button onclick="doBootstrap()" id="bsBtn">一键创建配置</button>
+    <div class="login-error" id="bsError"></div>
+    <div id="bsResult" style="display:none;margin-top:12px">
+      <p style="color:#16a34a;margin:0 0 6px">✅ 创建成功！admin_token 只显示这一次，请立即保存：</p>
+      <pre id="bsTokenOut" style="user-select:all;background:#f3f4f6;padding:8px;word-break:break-all"></pre>
+      <p style="font-size:12px;color:#666" id="bsNext"></p>
+      <button onclick="bsGoLogin()">用这个 Token 直接进入面板</button>
+    </div>
+  </div>
+</div>
+
 <!-- 主应用 -->
 <div class="app" id="app">
   <div class="topbar">
@@ -2549,8 +2568,50 @@ async function deleteAllPackages() {
   loadPackageList();
 }
 
+// ========== 首次启动探测 ==========
+let BOOTSTRAP_URL = '';
+async function postBootstrapRaw(action, extra) {
+  const url = document.getElementById('loginUrl').value.trim()
+    || (location.origin + location.pathname.replace(/\/[^/]*$/, '/') + 'sync_api.php');
+  BOOTSTRAP_URL = url;
+  const r = await fetch(url, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(Object.assign({action: action}, extra || {})),
+  });
+  return r.json();
+}
+async function doBootstrap() {
+  const err = document.getElementById('bsError'); err.textContent = '';
+  const btn = document.getElementById('bsBtn'); btn.disabled = true;
+  try {
+    const r = await postBootstrapRaw('bootstrap', {
+      admin_token: document.getElementById('bsToken').value,
+      scope_name:  document.getElementById('bsScope').value.trim(),
+      work_dir:    document.getElementById('bsWorkDir').value.trim(),
+    });
+    if (!r.ok) { err.textContent = (r.message || r.error || '失败') + (r.fix_hint ? '（' + r.fix_hint + '）' : ''); return; }
+    localStorage.setItem('ai_sync_admin_token', r.admin_token);
+    localStorage.setItem('ai_sync_api_url', BOOTSTRAP_URL);
+    document.getElementById('bsResult').style.display = 'block';
+    document.getElementById('bsTokenOut').textContent = r.admin_token;
+    document.getElementById('bsNext').textContent =
+      (r.warning ? '⚠ ' + r.warning + '\n' : '') + '工作目录: ' + r.work_dir;
+  } finally { btn.disabled = false; }
+}
+function bsGoLogin() { location.reload(); }
+
 // ========== 自动登录 ==========
 (async function() {
+  // 先探: 配置文件不存在 → 显示初始化卡片而不是登录框
+  try {
+    const st = await postBootstrapRaw('bootstrap_status');
+    if (st.ok && st.initialized === false) {
+      document.getElementById('loginPage').style.display = 'none';
+      document.getElementById('bootstrapPage').style.display = 'flex';
+      document.getElementById('bsWorkDir').placeholder = st.suggested_work_dir || '工作目录绝对路径';
+      return;
+    }
+  } catch(e) {}
   const savedToken = localStorage.getItem('ai_sync_admin_token');
   const savedUrl = localStorage.getItem('ai_sync_api_url');
   if (savedToken && savedUrl) {
