@@ -395,7 +395,7 @@ $GLOBALS['HELP_SPEC'] = [
         'see' => ['ping'],
     ],
     'client_download' => [
-        'd' => '返回服务端参考客户端 sync.py 原始字节 (客户端 --self-upgrade 自动升级用; 响应头 X-Client-Md5 携带 md5)',
+        'd' => '返回服务端参考客户端 sync.py 原始字节 (客户端 --self-update 自动升级用; 响应头 X-Client-Md5 携带 md5)',
         'r' => [],
         'eg' => ['action' => 'client_download'],
         'ret' => '原始字节流 (application/octet-stream)',
@@ -4223,7 +4223,7 @@ function _client_meta() {
 }
 
 /**
- * client_download: 返回 sync_api.php 同目录 sync.py 原始字节 (客户端 --self-upgrade 自动升级用).
+ * client_download: 返回 sync_api.php 同目录 sync.py 原始字节 (客户端 --self-update 自动升级用).
  * 绕过 JSON 包装直接流式输出; 与 pkg 下载同级 (客户端代码本就是公开分发物).
  */
 function action_client_download($req, $cfg) {

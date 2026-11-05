@@ -167,7 +167,7 @@ import threading
 import time
 
 # 🆕 FIX-version-v4.18: 唯一版本来源 — help-ai/启动日志/帮助文本统一引用, 不再散落硬编码
-APP_VERSION = "v4.39.0"
+APP_VERSION = "v4.39.4"
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14105,6 +14105,7 @@ def _main_with_oplog():
             _payload = {"ok": rc == 0, "code": rc, "stdout": _out_s, "stderr": _err_s}
             # 🆕 v4.11-JSON: 顶层统一 command 字段 (首个非 flag 的 --xxx 操作参数; AI 无需自己 parse)
             _CMD_FLAGS = ("--json", "--plain", "--quiet", "--verbose", "--yes", "--conf",
+                          "--no-auto-upgrade",
                           "--timeout", "--dry-run", "--show-diff", "--cwd", "--backup",
                           "--error-lines", "--error-grep", "--watch-interval",
                           "--grep-path", "--grep-regex", "--fix", "--smart-strategy",
@@ -14194,6 +14195,7 @@ def _main_with_oplog():
             # 🆕 FIX-help-on-error: 非 --json 模式失败时统一指路, 避免 AI 失败后瞎摸索绕路
             if rc != 0:
                 _CMD_FLAGS_S = ("--json","--plain","--quiet","--verbose","--yes","--conf",
+                                "--no-auto-upgrade",
                                 "--timeout","--dry-run","--cwd","--backup","--help","--version")
                 _cmd = ""
                 for _a in sys.argv[1:]:
@@ -14211,6 +14213,7 @@ def _main_with_oplog():
         try:
             import json as _json_s
             _CMD_FLAGS_S2 = ("--json","--plain","--quiet","--verbose","--yes","--conf",
+                             "--no-auto-upgrade",
                              "--timeout","--dry-run","--cwd","--backup","--help")
             # FIX-v4.31: --version 是一条真正的一级命令 (有自己的 command 名), 旧代码把它当成
             #   普通 flag 过滤掉, 导致摘要行 command="" 与 stdout 里的 "command":"version" 自相矛盾.

@@ -1,0 +1,38 @@
+# ai-sync 客户端配置模板
+# 用法: cp sync.conf.example sync.conf  然后填写下面 3 个必填项
+# 警告: sync.conf 含 API_TOKEN，已被 .gitignore 忽略，切勿提交。
+#       README 的安全边界一节说明了 token 泄露的后果：拿到 token ≈ 拿到服务器。
+
+# ---- 必填 ------------------------------------------------------------------
+# 服务端入口。PHP 服务端填 sync_api.php 的 URL；Python 服务端填它的监听地址。
+API_URL    = "https://your-server.example/path/sync_api.php"
+# 由服务端 sync_config.json 的 tokens / admin_token 签发；不要直接用 admin_token 下发客户端。
+API_TOKEN  = "CHANGE_ME_32_BYTES_RANDOM_TOKEN"
+# scope 名，需与服务端 sync_config.json 的 scopes 下的键一致。
+SCOPE      = "works"
+
+# ---- 工作目录（重要）--------------------------------------------------------
+# 留空是故意的：首次运行用 `--workdir <稳定绝对目录>` 自举，客户端会自动回写
+# WATCH_DIR 与 LOG_FILE。不要把这个目录放在 /tmp 或会被清理的临时目录。
+# 也不要把 sync.conf 放进 WATCH_DIR —— 否则会把含 token 的配置同步到服务器。
+WATCH_DIR  = ""
+LOG_FILE   = ""
+REMOTE_BASE = ""
+
+# ---- 输出与升级 -------------------------------------------------------------
+# 默认 JSON：顶层恒为 {ok, code, stdout, stderr, command}，AI 直接断言字段。
+JSON_DEFAULT  = true
+# 客户端自升级：比对服务端 whoami.client_md5，不一致则下载 + MD5 校验 +
+# py_compile 预检 + 备份 + 原子替换。仅在你完全信任服务端时开启。
+AUTO_UPGRADE  = true
+VERIFY_SSL    = true
+LOG_LEVEL     = "info"
+
+# ---- 同步行为 ---------------------------------------------------------------
+TWO_WAY        = false
+DELETE_SYNC    = false
+IGNORE         = [".sync_*", "._*", "*.log", "*.bak", "ai-sync/*", ".git/*", "node_modules/*"]
+ALLOW_EXT      = []
+LOCAL_BACKUP_DIR  = ".sync_backup"
+LOCAL_BACKUP_KEEP = 10
+UPLOAD_TIMEOUT    = 120

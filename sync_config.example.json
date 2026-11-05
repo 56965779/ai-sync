@@ -1,7 +1,7 @@
 {
   "_comment": "ai-sync 服务端配置模板。复制为 sync_config.json（已 .gitignore），务必改掉所有 token 后再启动。",
   "_warning": "CHANGE_ME_* 为占位符。生产环境请使用 32 字节以上随机值；服务端应拒绝默认/弱 token 启动。scopes.<name>.work_dir 必须是绝对路径。",
-  "version": "4.39.0",
+  "version": "4.39.4",
   "global": {
     "allow_ips": [],
     "rate_limit": {
