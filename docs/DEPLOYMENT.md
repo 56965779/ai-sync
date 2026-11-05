@@ -2,7 +2,8 @@
 
 > 标注说明：✅ = 本轮实机跑通；⚠️ = 按源码给出但未在本轮实机复跑；❌ = 实测失败。
 > 本轮环境：Windows 客户端（Python 3.13.14）+ Android Termux / nginx / php-fpm 服务端（HTTPS）。
-> 维护机没有安装 PHP 与 nginx，所以「本地起服务」类命令无法在此复跑。
+> 维护机已装 PHP 8.1.2：`php -S` 与全量 `php -l` 均已实跑；nginx / php-fpm 仍未安装，
+> 所以「nginx 形态」按源码给出，本地内置服务器形态已实测。
 
 ---
 
@@ -21,21 +22,30 @@ python3 -c "import secrets;print(secrets.token_hex(32))"   # 生成 token
 git status --short | grep -E 'sync_config.json|sync.conf' || echo "OK: 真实配置未纳入版本控制"
 ```
 
-**四个必须同目录的文件**：`sync_api.php`、`sync.py`、`tools/`、`sync_config.json`
-（最后一个可用 `AI_SYNC_CONFIG_FILE` 外移）。原因见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+**四项必须同目录**：`sync_api.php`、`sync.py`、`tools/`、`sync_config.json`
+（配置可用 `AI_SYNC_CONFIG_FILE` 外移）。`admin.html` 可选，要用管理面板时也放这里。
+原因见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ---
 
 ## 1. ✅ nginx + php-fpm（本轮实测形态）
+
+### 1.0 前置
+
+- **PHP 8.0+**。必需扩展：`json`、`hash`（默认编译进去）；另需 `mbstring`（按字节截断）、
+  `zip`（生成客户端安装包）——缺 `zip` 时只有打包功能会失败，其余 action 不受影响。
+- Web 服务：nginx + php-fpm，或 Apache + mod_php / php-fpm。
+  **只在本机验证**可以完全不装 Web 服务，用第 2 节的 `php -S`。
 
 ### 1.1 目录
 
 ```
 <WEB_ROOT>/server/
 ├── sync_api.php
-├── sync.py            # 分发版客户端
-├── sync_config.json
-└── tools/*.php
+├── sync.py            # 分发版客户端（whoami.client_md5 用它算 MD5）
+├── sync_config.json   # 或用 AI_SYNC_CONFIG_FILE 外移
+├── tools/*.php        # 11 个工具模块，路径写死为「入口同目录/tools/」
+└── admin.html         # 可选：管理面板，同目录时浏览器直接打开
 ```
 
 本轮实测的 `work_dir` 是 nginx 站点根（Termux 下形如
@@ -116,7 +126,7 @@ VERIFY_SSL = false
 
 ---
 
-## 3. ✅ POSIX / ❌ Windows（Python 服务端）
+## 3. ✅ POSIX / ✅ Windows（Python 服务端）
 
 ```bash
 python3 sync_api.py --config sync_config.json \
@@ -125,7 +135,16 @@ python3 sync_api.py --config sync_config.json \
 ```
 
 参数（源码 `main()` 中定义）：`--config` / `--host`（默认 `0.0.0.0`）/
-`--port`（默认 `5443`）/ `--tls-cert` / `--tls-key`。
+`--port`（默认 `5443`）/ `--tls-cert` / `--tls-key`。不传证书即明文 HTTP。
+
+**同目录需要三个文件**：`sync_api.py`、`sync_config.json`、`sync.py`
+（后者的字节就是 `whoami.client_md5` 与 `client_download` 的来源）。**不需要 `tools/`** —— 那是 PHP 端的工具层。
+
+**它不托管静态文件**：只有 `POST sync_api.php` 与 `GET /`、`/healthz`、`/ping`。要用管理面板，
+`admin.html` 得交给别的静态服务（或本地 `file://` 打开后手填完整 API URL），服务端已回显 CORS。
+
+> 实测：`GET /admin.html` 返回的是 **HTTP 200 + `{"ok":false,"code":1011,"error":"bad_json"}`**，
+> 不是页面 —— 状态码 200 在这里不代表成功。
 
 **实测结论**：
 
@@ -206,7 +225,7 @@ Apache：`SetEnv AI_SYNC_CONFIG_FILE /etc/ai-sync/sync_config.json`。
 | Termux 上 `--exec "nginx -t"` / `php -v` 失败 | exec 的 PATH 不含 `$PREFIX/bin`，且服务进程权限受限 | 用 `pwd` / `ls` / `df` 等基础命令；nginx 操作走服务器本机 |
 | `--doctor` 在 Python 3.13 严格警告模式下丢掉整个日志源 | 旧版 `strptime("%b %d %H:%M:%S")` 无年份触发 `DeprecationWarning` | 用仓库当前版客户端（先补年份再解析） |
 | 拉取后 `status` 有 `DIRTY` | 本地改动或部署后快照未更新 | 核对 MD5；必要时重新 `--auto pull` |
-| `client_md5` 与本地 `sync.py` MD5 永远对不上 | 文件行尾 CRLF/LF 不一致 | 仓库已加 `.gitattributes` 统一 LF；必要时 `git add --renormalize .` |
+| `client_md5` 与本地 `sync.py` MD5 永远对不上 | 文件行尾 CRLF / LF 不一致 | **先比字节**：`git show origin/main:sync.py \| sha256sum`。**不要** `git add --renormalize .` —— 把既有 CRLF 源码改回 LF 会改字节，服务端 MD5 一变就是一次全网静默升级。`.gitattributes` 只约束新增文件，就是为了不碰既有源码。 |
 
 ---
 
