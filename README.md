@@ -55,6 +55,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 | CI（GitHub Actions） | ✅ 实测 | 6 个 job 全绿：Python 3.8 / 3.12、PHP 8.0 / 8.3、双端契约一致性、文档链接与占位符 |
 | 本地 `php -S` 试跑 | ✅ 实测（2026-11-05 复跑） | PHP 8.1.2：`php -S 127.0.0.1:8899 -t .` 起服务，`ping` 返回 200；Python 3.8.20 客户端 `--whoami` / `--auto pull` 端到端通过（2 个文件，落盘 MD5 三方一致） |
 | Python 服务端 | ✅ POSIX / ✅ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 实机跑通（Python 3.13.12）：`ping` / `whoami` / `--auto pull` / `health` / `doctor` / `exec`（异步协议 + cwd + 文件写回）/ 超时 `rc=124` / `shell` 持久会话全部通过。Windows 需 Git 自带 `sh` 在 PATH（`fcntl` 已降级、`exec` 经 MSYS2 `sh`） |
+| 客户端包安装包下载 | ✅ 实测（2026-11-05） | `client_package` 生成的 `pkg_key` 链接：`200` / `223674` 字节 / `application/zip`；解包 → `--workdir` 自举 → `--whoami` → `--auto pull`（`pulled=11`、`failed=0`）全链路跑通，详见 [docs/AI-USAGE.md](docs/AI-USAGE.md) |
 | macOS / 管理面板浏览器流程 | ⚠️ 未实测 | 客户端有代码级降级保护，但未实机验证 |
 
 数据细节见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)。
@@ -72,7 +73,7 @@ ai-sync/
 ├── sync.conf.example          # 客户端配置模板
 ├── admin.html                 # 静态管理面板（目录授权 / token / 备份 / 审计）
 ├── tools/*.php                # PHP 服务端按需加载的 11 个工具模块
-├── docs/                      # 部署 / API / 架构 / 基准 / 威胁模型
+├── docs/                      # 部署 / AI 接入 / API / 架构 / 基准 / 威胁模型
 ├── .github/                   # CI（语法 / 双端契约 / 文档检查） + issue / PR 模板
 ├── LICENSE  README.md
 ├── CHANGELOG.md  CONTRIBUTING.md  SECURITY.md
@@ -354,6 +355,42 @@ python3 sync.py --selfcheck
 
 ---
 
+## 2.6 把服务器交给 AI（面板打包 → 一条链接）
+
+人只做三步，剩下的 AI 自己接：
+
+1. 面板「授权 → 添加目录授权」：scope 名 + 绝对 `work_dir` —— 这是 AI 能碰的全部范围
+2. 面板「授权 → 添加 Token」：给客户端单独建一个，只勾需要的能力（`read/write/delete`，要跑命令再加 `exec`）；**`admin_token` 绝不下发**
+3. 面板「概览 → 打包客户端」→ 复制它给的 `pkg_key` 链接
+
+链接长这样（**下载不需要 token**）：
+
+```
+https://your-server.example/server/sync_api.php?pkg_key=<64 位hex>
+```
+
+包里 `sync.conf` 已内置 `API_URL` / `API_TOKEN` / `SCOPE`，所以**这条链接本身就是凭据**：默认 24 小时过期，别贴公开频道。
+
+把链接加一句任务丢给 AI：
+
+> 这是 ai-sync 客户端包：`<链接>`
+> 按包内 `README.txt` 接入：下载解包 → `python3 sync.py --workdir <稳定目录>` → `--whoami` → `--auto pull`。
+> 然后帮我 `<任务>`。
+
+AI 侧实际四步（2026-11-05 对真实公网服务器实测）：
+
+| 步骤 | 实测结果 |
+|---|---|
+| 下载解包 | `200` / `application/zip` / `223674` 字节 → `README.txt` `start.sh` `sync.py` `sync.conf` |
+| `--workdir` 自举 | `ok=true`、`scope=Lan`、`exec=true`、服务端根 `/mnt/data/wwwroot/default/lan/` |
+| `--whoami` | `permissions=[read,write,delete,exec,lint,backup]`、`is_admin=false` |
+| `--auto pull` | `pulled=11`、`failed=0`、回读 MD5 三方一致 |
+
+> ⚠️ 包里的 `WATCH_DIR` 是空的，**必须先 `--workdir`**；跳过自举直接 `--whoami` 会报「未指定工作目录」（实测）。
+> 给 AI 的完整话术、该断言哪些字段、8 条坑，见 [docs/AI-USAGE.md](docs/AI-USAGE.md)。
+
+---
+
 # 三、使用
 
 ## 3.1 三条日常命令
@@ -534,6 +571,7 @@ curl -s -X POST ... -d '{"action":"help","name":"upload",...}'
 # 七、文档
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — 各形态部署与排错（含实测/未实测标注）
+- [docs/AI-USAGE.md](docs/AI-USAGE.md) — 把服务器交给 AI：面板打包 → 一条链接 → AI 自己接入
 - [docs/API.md](docs/API.md) — 67 个 action 的分组、契约、错误码与自描述用法
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 双实现契约、鉴权、目录模型、自动升级链路
 - [docs/ADMIN.md](docs/ADMIN.md) — 静态管理面板使用
