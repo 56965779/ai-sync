@@ -8115,8 +8115,13 @@ def _shell_env_clean(env):
 
 def _shell_write_cmdfile(cmd, rc_path, cwd_path, envout_path):
     """用户命令写入脚本文件, 末尾 EXIT trap 回写 rc/cwd/env(支持 exit, 不受大括号干扰)。"""
-    content = ("trap 'printf \"AI_SYNC_RC=%%d\\n\" \"$?\" > %s; printf \"%%s\" \"$(pwd)\" > %s; export -p > %s' EXIT\n"
-               % (sh_quote(rc_path), sh_quote(cwd_path), sh_quote(envout_path)))
+    # FIX-win-shell: 原实现把整条 trap 命令包在单引号里, 又对每个路径 sh_quote(再套单引号),
+    #   引号互相打断 —— Windows 临时路径 'C:\...\Temp\shell_rc_x' 实际被当成未加引号,
+    #   反斜杠被 shell 当转义吃掉, 写到当前目录的怪文件名, 且 _shell_capture 读不到真实 rc/cwd/env
+    #   (POSIX 的 /tmp 无反斜杠, 侥幸正常)。改为先拼命令体(路径各自 sh_quote), 再对整条命令体 sh_quote 一次。
+    _body = ("printf \"AI_SYNC_RC=%%d\\n\" \"$?\" > %s; printf \"%%s\" \"$(pwd)\" > %s; export -p > %s"
+             % (sh_quote(rc_path), sh_quote(cwd_path), sh_quote(envout_path)))
+    content = "trap %s EXIT\n" % sh_quote(_body)
     content += cmd + "\n"
     f = tempfile.NamedTemporaryFile(prefix='shell_cmd_', delete=False, mode='w', encoding='utf-8')
     f.write(content); f.close()
@@ -8178,6 +8183,16 @@ def _shell_write_envfile(env):
     f.write(_shell_envfile_content(env)); f.close()
     return f.name
 
+def _posix_to_win_path(p):
+    """Git-bash/MSYS2 的 pwd 返回 /c/Users/... 形式; Windows 上转成 C:\\Users\\... 。
+    非 Windows 或非该形式原样返回。"""
+    if os.name != 'nt' or not p:
+        return p
+    if len(p) >= 3 and p[0] == '/' and p[2] == '/' and p[1].isalpha():
+        return p[1].upper() + ':' + p[2:].replace('/', '\\')
+    return p
+
+
 def _shell_capture(rc_path, cwd_path, envout_path, fallback_cwd):
     rc = 0; new_cwd = fallback_cwd; env = {}
     try:
@@ -8189,7 +8204,7 @@ def _shell_capture(rc_path, cwd_path, envout_path, fallback_cwd):
     try:
         with open(cwd_path) as f:
             p = f.read().strip()
-            if p: new_cwd = os.path.normpath(p)
+            if p: new_cwd = os.path.normpath(_posix_to_win_path(p))
     except Exception:
         pass
     try:
