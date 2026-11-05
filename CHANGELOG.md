@@ -40,6 +40,24 @@
 - 示例配置全部为 `CHANGE_ME_*` 占位符；历史提交中从未出现 `sync_config.json` / `sync.conf`。
 - `python3 -m py_compile sync.py sync_api.py` 通过。
 
+### CI 修复（同日二轮，实测驱动）
+- 首跑唯一失败的是 `Python 语法（3.8）` 这个 leg，报错原文
+  `The version '3.8' with architecture 'x64' was not found for Ubuntu 26.04`
+  —— `ubuntu-latest` 已解析到 26.04，而 `actions/setup-python@v5` 的预编译清单里没有该镜像的 3.8 构建。
+  代码本身在 3.8.20 上 `py_compile` 与 `sync.py --version` 均通过。
+- 改法：`python` job 换 `astral-sh/setup-uv` + `uv python install`，与 runner 镜像解耦；
+  `php` job 固定 `ubuntu-22.04`（`setup-php` 在其上装 8.0 / 8.3 是稳定组合，26.04 装 8.0 需额外源）。
+  修复后 run `e4b7a31` 的 6 个 job 全绿。
+
+### 实测补齐（文档口径据此改写）
+- 装上 PHP 8.1.2 后本地起 `php -S 127.0.0.1:8899 -t .`：`ping` 返回 200；`php -l` 全量 12 个 PHP 文件无语法错误。
+- Python 3.8.20 客户端连本地 PHP 服务端：`--whoami` 通过，`--auto pull` 拉到 2 个文件、
+  `failed=0`、回读 MD5 三方一致。
+- POSIX 上 `sync_api.py --host 127.0.0.1 --port 8900`（不传 TLS 参数）起服务，`ping` 返回 200。
+- 文档同步：README 覆盖表「本地 `php -S`」由 ⚠️ 未实测改为 ✅ 实测，
+  「Python 服务端」由 ⚠️ 部分改为「✅ POSIX / ❌ Windows」，环境要求写明实测解释器版本；
+  `docs/DEPLOYMENT.md` 第 2 / 3 节改写为已复跑；`docs/BENCHMARKS.md` 新增第 9 节。
+
 ---
 
 

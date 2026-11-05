@@ -2,7 +2,7 @@
 
 > 本节全部数字来自本项目的真实运行（Windows 11 客户端 `sync.py` + Termux/nginx/php-fpm 服务端，
 > HTTPS 公网链路）。标注「源码注释」的为代码内自带说明，未在本机独立复跑。
-> 本机**未**实测：Python 服务端、本地 `php -S`、Windows 服务端 —— 这些形态在文档里已标注为覆盖边界。
+> 2026-11-05 补充：本地 `php -S`（PHP 8.1.2）与 POSIX 上的 Python 服务端都已实机跑通，数字见第 9 节；仍未实测：Windows 服务端、macOS。
 
 ---
 
@@ -84,3 +84,22 @@
 | Windows 客户端 `sync.py` | 实测（本机），含 `fcntl → msvcrt` 降级 |
 | Windows 服务端 `sync_api.py` | **未覆盖**：模块级 `import fcntl` 启动即失败 |
 | macOS | 代码级降级保护，未实机运行 |
+
+## 9. 本地复跑（2026-11-05）
+
+维护环境：Linux（Ubuntu 22.04 容器）、Python 3.8.20（`uv` 安装）、PHP 8.1.2。
+
+| 项目 | 结果 |
+|---|---|
+| `python3.8 -m py_compile sync.py sync_api.py` | 退出码 0 |
+| `python3.8 sync.py --version` | `ok=true`，`version=v4.39.4` |
+| PHP 服务端 `php -S 127.0.0.1:8899 -t .` | `ping` 200 |
+| 客户端 → PHP 服务端 `--auto pull` | `pulled=2`、`failed=0`、三维 MD5 一致 |
+| Python 服务端 `sync_api.py --port 8900`（无 TLS） | 启动日志 `listening on http://127.0.0.1:8900 (tls=False)`，`ping` 200 |
+| `php -l` 全量 12 个 PHP 文件 | 全部 `No syntax errors detected` |
+| GitHub Actions（commit `e4b7a31`） | 6/6 job 绿：Python 3.8 / 3.12、PHP 8.0 / 8.3、契约、文档 |
+
+> 复跑方法：服务端用 `php -S` 或 `sync_api.py` 起在 `127.0.0.1`，`sync.conf` 里把
+> `API_URL` 指过去、`VERIFY_SSL=false`，然后 `--whoami` / `--auto pull`。
+> 三个临时目录（服务端工作区 / 客户端工作区 / 配置）都放在 `/tmp` 之外更好，
+> 因为 `--workdir` 会回写进 `sync.conf`。

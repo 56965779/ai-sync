@@ -86,9 +86,9 @@ curl -s -X POST "https://your-server.example/server/sync_api.php" \
 
 ---
 
-## 2. ⚠️ 本地 PHP 内置服务器（调试用，本轮未实机复跑）
+## 2. ✅ 本地 PHP 内置服务器（调试用，已实机复跑）
 
-维护环境没有 PHP，以下命令按 `sync_api.php` 的入口行为给出，**未跑通**：
+PHP 8.1.2 上已实机跑通（2026-11-05 复跑）。以下命令可直接照抄：
 
 ```bash
 cd ai-sync
@@ -106,9 +106,17 @@ VERIFY_SSL = false
 
 注意：开发服务器会把 `sync_config.json` 静态暴露，只能绑 `127.0.0.1`，不要对外。
 
+**实测记录（2026-11-05，PHP 8.1.2 + Python 3.8.20）**：
+
+| 步骤 | 结果 |
+|---|---|
+| `POST {"action":"ping"}` | 200，返回 `version` / `actions` 全量清单 |
+| 客户端 `--whoami` | `ok=true`，`scope=works`，`permissions=[read,write]` |
+| 客户端 `--auto pull` | `pulled=2 / failed=0`，回读 MD5 三方一致 |
+
 ---
 
-## 3. ❌ / ⚠️ Python 服务端
+## 3. ✅ POSIX / ❌ Windows（Python 服务端）
 
 ```bash
 python3 sync_api.py --config sync_config.json \
@@ -124,7 +132,7 @@ python3 sync_api.py --config sync_config.json \
 - ❌ Windows：`python3 sync_api.py --help` 直接崩在模块级 `import fcntl as _fcntl`
   （`sync_api.py:7479`），`ModuleNotFoundError: No module named 'fcntl'`，
   连 argparse 都到不了。客户端 `sync.py` 有 `fcntl→msvcrt` 降级，服务端没有。
-- ⚠️ POSIX：本轮未实机跑通。
+- ✅ POSIX：2026-11-05 实机跑通（Linux + Python 3.8.20）。`python3.8 sync_api.py --config sync_config.json --host 127.0.0.1 --port 8900` 启动日志为 `listening on http://127.0.0.1:8900 (tls=False)`，`ping` 返回 200。不传 `--tls-cert/--tls-key` 时走明文 HTTP，只适合本机调试。
 - 仓库里的 Python 服务端已补 `client_download`（`_client_meta` + 流式分发），
   但**历史部署的 Python 端可能没有这个 action**，切 API_URL 过去会导致自升级失效。
   用 `{"action":"help"}` 确认 `available_actions` 里有没有 `client_download`。

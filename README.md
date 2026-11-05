@@ -8,6 +8,8 @@
 
 `MIT` · `Python 3.8+` · `67 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
 
+[![CI](https://github.com/56965779/ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/56965779/ai-sync/actions/workflows/ci.yml)
+
 > 本项目的文档只写**实测跑通过的路径**。没跑过的部署形态会明确标注，不写成承诺。
 
 ---
@@ -28,7 +30,7 @@
 
 ## 实测覆盖范围（请先读这一节）
 
-这份文档里的命令、输出和数值来自 2026-11-04 的一次完整接入与回归：
+这份文档里的命令、输出和数值来自 2026-11-04 的一次完整接入与回归，以及 2026-11-05 的本地复跑：
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
@@ -39,8 +41,9 @@
 | 部署与回滚 | ✅ 实测 | 原子部署 `verify_ok=1`；原版 ↔ 补丁版往返部署可逆 |
 | 全网自动升级 | ✅ 实测 | 服务端换分发版后，客户端下次运行静默升级并留备份 |
 | 边界测试 | ✅ 实测 | 16 组：日志源缺失、采集失败、老服务端降级、Python 3.13 严格警告、进度折叠等 |
-| 本地 `php -S` 试跑 | ⚠️ 未实测 | 维护环境未装 PHP/nginx；命令按源码给出，见 [部署文档](docs/DEPLOYMENT.md) |
-| Python 服务端 | ⚠️ 部分 | Windows 上**启动即失败**（`import fcntl` 无降级）；POSIX 未实机跑通 |
+| CI（GitHub Actions） | ✅ 实测 | 6 个 job 全绿：Python 3.8 / 3.12、PHP 8.0 / 8.3、双端契约一致性、文档链接与占位符 |
+| 本地 `php -S` 试跑 | ✅ 实测（2026-11-05 复跑） | PHP 8.1.2：`php -S 127.0.0.1:8899 -t .` 起服务，`ping` 返回 200；Python 3.8.20 客户端 `--whoami` / `--auto pull` 端到端通过（2 个文件，落盘 MD5 三方一致） |
+| Python 服务端 | ✅ POSIX / ❌ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 上**启动即失败**（`import fcntl` 无降级） |
 | macOS / 管理面板浏览器流程 | ⚠️ 未实测 | 客户端有代码级降级保护，但未实机验证 |
 
 数据细节见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)。
@@ -88,8 +91,8 @@ cd ai-sync
 
 环境要求：
 
-- 客户端：Python 3.8+（纯标准库，实测 3.13.14）；Windows / Linux / macOS / Termux / 容器
-- PHP 服务端：PHP 8.0+，nginx + php-fpm 或 Apache（实测形态）
+- 客户端：Python 3.8+（纯标准库；实测 3.8.20 / 3.12 / 3.13.14，其中 3.8 与 3.12 由 CI 每次 push 复跑）
+- PHP 服务端：PHP 8.0+，nginx + php-fpm 或 Apache（实测形态）；8.0 / 8.3 由 CI 全量 `php -l` 覆盖，8.1.2 另做过 `php -S` 端到端
 - Python 服务端：Python 3.8+，**当前仅 POSIX**（Windows 有 `fcntl` 依赖，见已知边界）
 
 下载完先做两件事，避免把凭据提交进仓库：
@@ -176,8 +179,8 @@ python3 sync_api.py --config sync_config.json \
   --tls-cert /path/fullchain.pem --tls-key /path/privkey.key
 ```
 
-> 本地 `php -S 127.0.0.1:8899 -t .` 也能起一个调试服务端，但**本次维护环境未装 PHP，
-> 这条没实机跑通**。完整形态与排错见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+> 本地 `php -S 127.0.0.1:8899 -t .` 已实机跑通（PHP 8.1.2）：`ping` 返回 200，
+> Python 3.8.20 客户端 `--whoami` 与 `--auto pull` 端到端通过。完整形态与排错见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ## 2.3 验证服务端
 
