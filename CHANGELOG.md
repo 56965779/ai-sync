@@ -7,6 +7,12 @@
 
 ---
 
+## 未发布 — 服务端自检 GitHub 更新（2026-11-05）
+
+- **新增 `update_check`（仅 admin）**：面板「版本更新」卡一键查询 GitHub 最新 Release，与当前运行版本对比，有新版直接显示 Release 说明。
+- **新增 `update_apply`（仅 admin）**：从 raw.githubusercontent 下载全部 15 个服务端文件，**先备份到 `ai-sync-backups/update-<时间戳>/` 再原子覆盖**，并主动 opcache_invalidate；`.php/.py` 防 GitHub 错误页（HTML）被写进代码文件。
+- 面板新增「版本更新」卡片（环境自检下方）。
+
 ## 未发布 — 首次部署一键初始化（2026-11-05）
 
 - **新增 `bootstrap` / `bootstrap_status`（无需 token，鉴权之前执行）**：首次部署不再手写 sync_config.json —— 打开 admin.html 自动进入初始化卡片，留空 admin_token 自动生成 40 hex，自动创建默认 scope 与工作目录；配置一旦存在立即失效（1002 already_initialized）。

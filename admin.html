@@ -319,6 +319,10 @@ tr .row-actions button{margin-left:4px}
         <div id="envCheck"><div class="loading">加载中...</div></div>
       </div>
       <div class="card">
+        <h2>版本更新 <span class="badge">UPDATE</span> <button class="btn btn-primary btn-sm" style="float:right" onclick="checkUpdate()">检查 GitHub 更新</button></h2>
+        <div id="updatePanel"><div class="loading">未检查</div></div>
+      </div>
+      <div class="card">
         <h2>当前身份与能力 <span class="badge">WHOAMI</span> <button class="btn btn-primary btn-sm" style="float:right" onclick="loadIdentity()">刷新</button></h2>
         <div id="identityContent"><div class="loading">加载中...</div></div>
       </div>
@@ -1080,6 +1084,35 @@ function renderEnvCheck(health) {
     html += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--green)">✅ 未发现部署告警</div>';
   }
   html += '<div style="margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.7">⚠ 装了扩展却还显示缺失? PHP 扩展只在进程启动时加载 —— 重启 <code>php-fpm</code> / <code>php -S</code> 进程后再点「重新检测」。</div>';
+
+// ========== 版本更新 ==========
+async function checkUpdate() {
+  const el = document.getElementById('updatePanel');
+  el.innerHTML = '<div class="loading">正在查询 GitHub...</div>';
+  try {
+    const r = await apiCall('update_check');
+    if (!r.ok) { el.textContent = r.message || r.error || '查询失败'; return; }
+    let html = '<div style="font-size:14px;line-height:1.9">当前版本: <b>' + (r.current_version || '?') + '</b>　GitHub 最新: <b>' + r.latest_version + '</b><br>';
+    if (r.update_available) {
+      html += '<span style="color:#dc2626;font-weight:600">有新版本 ' + r.tag + ' 可用</span> <button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="applyUpdate()">一键更新到 ' + r.tag + '</button>';
+    } else {
+      html += '<span style="color:#16a34a">✅ 已是最新</span>';
+    }
+    if (r.notes) html += '<pre style="margin-top:8px;font-size:12px;white-space:pre-wrap;color:var(--text-dim)">' + r.notes + '</pre>';
+    el.innerHTML = html;
+  } catch(e) { el.textContent = '查询失败: ' + e.message; }
+}
+async function applyUpdate() {
+  if (!confirm('将从 GitHub 下载最新服务端文件并覆盖当前文件（旧文件先备份）。继续？')) return;
+  const el = document.getElementById('updatePanel');
+  el.innerHTML = '<div class="loading">正在下载并覆盖文件...</div>';
+  try {
+    const r = await apiCall('update_apply');
+    if (!r.ok) { el.textContent = r.message || r.error; return; }
+    el.innerHTML = '<div style="color:#16a34a">✅ 更新完成: ' + r.updated + ' 个文件成功, ' + r.failed + ' 个失败<br><span style="font-size:12px;color:var(--text-dim)">备份: ' + r.backup_dir + '<br>' + r.note + '</span></div>';
+    setTimeout(() => { loadHealthCard(); }, 1500);
+  } catch(e) { el.textContent = '更新失败: ' + e.message; }
+}
   el.innerHTML = html;
 }
 
