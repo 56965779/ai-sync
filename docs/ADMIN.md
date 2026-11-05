@@ -14,6 +14,12 @@
 https://your-server.example/path/admin.html
 ```
 
+**Python 服务端**（`sync_api.py`）不托管静态文件，面板必须交给别的静态服务托管（或本地 `file://`
+打开），并在登录框里手填完整 `API URL`；服务端已回显 CORS。
+
+> 注意：直接访问 `http://host:8900/admin.html` 会返回 **HTTP 200 + `{"ok":false,"error":"bad_json"}`**，
+> 不是页面。状态码 200 不代表成功（实测 Python 3.12.11 / 3.8.20）。
+
 也可以本地文件方式打开（`file://`），此时**必须**在登录框里手动填 `API URL`
 （否则默认请求同目录的 `/sync_api.php`，会失败）。跨域时服务端已回显 `Origin` 处理 CORS，
 但建议同源托管最省事。
