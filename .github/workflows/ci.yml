@@ -16,21 +16,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.8 是 README 承诺的最低版本；3.12 覆盖当前主流解释器
+        # 3.8 是 README 承诺的最低版本；3.12 覆盖主流解释器
         python-version: ["3.8", "3.12"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+
+      # 不用 actions/setup-python：它从 actions/python-versions 的预编译清单取包，
+      # 而 runner 镜像（ubuntu-latest 已到 26.04）没有 3.8 的构建，
+      # 实测报错 "The version '3.8' with architecture 'x64' was not found for Ubuntu 26.04"。
+      # uv 自带各版本 CPython 的独立构建，与镜像无关，3.8 也能装。
+      - uses: astral-sh/setup-uv@v5
+
+      - name: 安装 Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: 解析解释器路径
+        run: echo "PY=$(uv python find ${{ matrix.python-version }})" >> "$GITHUB_ENV"
+
       - name: 语法编译检查
-        run: python -m py_compile sync.py sync_api.py
+        run: '"$PY" -m py_compile sync.py sync_api.py'
+
+      # 只跑 --version：不读配置、不触网，验证客户端能被这个解释器正常加载
       - name: 客户端可启动性（不触网）
-        run: python sync.py --version
+        run: '"$PY" sync.py --version'
 
   php:
     name: PHP 语法（${{ matrix.php-version }}）
-    runs-on: ubuntu-latest
+    # 固定在 22.04：setup-php 在更新的镜像上装 8.0 需要额外源，
+    # 而 22.04 是其稳定支持的组合。PHP 版本兼容性比 runner 新旧更重要。
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -41,22 +55,29 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
-      - name: 全量 lint
+          tools: none
+      - name: 全量 lint（含 tools/*.php）
         run: |
           set -e
-          find . -name '*.php' -not -path './.git/*' -print0 \
-            | xargs -0 -n1 -P4 php -l
+          files=$(git ls-files '*.php')
+          echo "$files" | while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            php -l "$f" > /dev/null
+          done
+          echo "lint 通过：$(echo "$files" | wc -l) 个 PHP 文件"
 
   contract:
     name: 双端契约一致性
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: 用 3.12 跑契约检查
+        run: |
+          uv python install 3.12
+          echo "PY=$(uv python find 3.12)" >> "$GITHUB_ENV"
       - name: 检查 action 集合 / 版本号 / 敏感文件
-        run: python .github/scripts/check_contract.py
+        run: '"$PY" .github/scripts/check_contract.py'
 
   docs:
     name: 文档链接与占位符
@@ -68,16 +89,18 @@ jobs:
           set -e
           fail=0
           while IFS= read -r link; do
+            [ -n "$link" ] || continue
             if [ ! -e "$link" ]; then
               echo "::error file=README.md::链接指向的文件不存在: $link"
               fail=1
             fi
-          done < <(grep -oE '\]\((docs/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+\.md)\)' README.md | sed 's/^](//;s/)$//' | sort -u)
+          done < <(grep -oE '\]\((docs/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+\.md)\)' README.md \
+                   | sed -e 's/^](//' -e 's/)$//' | sort -u)
           exit $fail
       - name: 示例配置必须是占位符
         run: |
           set -e
-          if grep -nE '"(admin_token|tokens)"\s*:\s*"[^C][^H]' sync_config.example.json; then
+          if grep -nE '"(admin_token|tokens)"[[:space:]]*:[[:space:]]*"[^C][^H]' sync_config.example.json; then
             echo "::error file=sync_config.example.json::示例配置里出现疑似真实 token"
             exit 1
           fi
