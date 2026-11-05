@@ -56,7 +56,9 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 | 本地 `php -S` 试跑 | ✅ 实测（2026-11-05 复跑） | PHP 8.1.2：`php -S 127.0.0.1:8899 -t .` 起服务，`ping` 返回 200；Python 3.8.20 客户端 `--whoami` / `--auto pull` 端到端通过（2 个文件，落盘 MD5 三方一致） |
 | Python 服务端 | ✅ POSIX / ✅ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 实机跑通（Python 3.13.12）：`ping` / `whoami` / `--auto pull` / `health` / `doctor` / `exec`（异步协议 + cwd + 文件写回）/ 超时 `rc=124` / `shell` 持久会话全部通过。Windows 需 Git 自带 `sh` 在 PATH（`fcntl` 已降级、`exec` 经 MSYS2 `sh`） |
 | 客户端包安装包下载 | ✅ 实测（2026-11-05） | `client_package` 生成的 `pkg_key` 链接：`200` / `223674` 字节 / `application/zip`；解包 → `--workdir` 自举 → `--whoami` → `--auto pull`（`pulled=11`、`failed=0`）全链路跑通，详见 [docs/AI-USAGE.md](docs/AI-USAGE.md) |
-| macOS / 管理面板浏览器流程 | ⚠️ 未实测 | 客户端有代码级降级保护，但未实机验证 |
+| macOS 客户端 | ⚠️ 未实测 | 有代码级降级保护，但未实机验证 |
+| 管理面板浏览器全流程 | ✅ 实测（2026-11-05） | 登录 → 加目录授权（文件数自动统计 3）→ 加 Token（六项权限）→ 一键打包（219.5KB、SHA256）→ `pkg_key` 下载 → 客户端自举 → `--auto pull`（`pulled=3`、`failed=0`），九步全通 |
+| 67 个 action 全量实测 | ✅ 实测（2026-11-05） | 用 `admin_token` 逐条打真实参数：**67/67 可达并通过**；错误码 `1001/1002/1004/1005/1011/1012/1099` 逐项验证。详见 [docs/SELF-TEST.md](docs/SELF-TEST.md) |
 
 数据细节见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)。
 
@@ -73,7 +75,7 @@ ai-sync/
 ├── sync.conf.example          # 客户端配置模板
 ├── admin.html                 # 静态管理面板（目录授权 / token / 备份 / 审计）
 ├── tools/*.php                # PHP 服务端按需加载的 11 个工具模块
-├── docs/                      # 部署 / AI 接入 / API / 架构 / 基准 / 威胁模型
+├── docs/                      # 部署 / AI 接入 / 全功能实测 / API / 架构 / 基准 / 威胁模型
 ├── .github/                   # CI（语法 / 双端契约 / 文档检查） + issue / PR 模板
 ├── LICENSE  README.md
 ├── CHANGELOG.md  CONTRIBUTING.md  SECURITY.md
@@ -175,7 +177,8 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 ### 前置条件
 
-- **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`（按字节截断用）、`zip`（生成客户端安装包用）
+- **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`（**缺了 `exec` / `search` / `shell_run` 直接返 1099「Internal server error」，看不出根因**）、`zip`（生成客户端安装包，缺了面板静默降级成只给 `sync.conf`）、`curl`（`webhook_test` 用）
+- **装完扩展必须重启 PHP 进程**（`php -S` 重启、`php-fpm` reload）：扩展只在进程启动时加载，只 `apt install` 不重启等于没装（实测踩过）
 - 一个把 `.php` 交给 php-fpm 的 Web 服务；**只在本机验证**时不用装 nginx，直接用 `php -S`
 
 ### 放文件：五项必须在同一目录
@@ -564,7 +567,8 @@ curl -s -X POST ... -d '{"action":"help","name":"upload",...}'
 | 日志时间窗口 | 部分 PHP 日志格式（`[04-Nov-2026 05:54:08 UTC]`）不匹配 24h 窗口解析，且本地时间与服务端 UTC 可能有偏移；以 `top_errors` / `known_noise` 为准。 |
 | 版本号 | `APP_VERSION` 当前为 `v4.39.4`；仍建议用 MD5（`--check-update` / `--selfcheck`）判版本，因为本地副本与服务端分发版可能不同步。 |
 | 无一键脚本 | 本仓库不提供 `scripts/quickstart.py`，请按上面的手工步骤。 |
-| 管理面板 | `admin.html` 是静态页面，浏览器全链路未在本轮实测覆盖，见 [docs/ADMIN.md](docs/ADMIN.md)。 |
+| 管理面板 | 浏览器全流程已实测（2026-11-05）：登录 → 目录授权 → Token → 打包全部可用，见 [docs/SELF-TEST.md](docs/SELF-TEST.md)。Python 端仍需另找静态服务托管，见 [docs/ADMIN.md](docs/ADMIN.md)。 |
+| 客户端 token 的可见范围 | 普通 token（无 `admin`）只见 52 / 67 个 action，`config_*` / `token_*` / `scope_*` / `package_*` / 审计类共 15 个需 `admin_token`。 |
 
 ---
 
@@ -572,6 +576,7 @@ curl -s -X POST ... -d '{"action":"help","name":"upload",...}'
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — 各形态部署与排错（含实测/未实测标注）
 - [docs/AI-USAGE.md](docs/AI-USAGE.md) — 把服务器交给 AI：面板打包 → 一条链接 → AI 自己接入
+- [docs/SELF-TEST.md](docs/SELF-TEST.md) — 全功能实测报告：面板三步 → 打包 → 67 个 action 逐条结果与错误码对照
 - [docs/API.md](docs/API.md) — 67 个 action 的分组、契约、错误码与自描述用法
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 双实现契约、鉴权、目录模型、自动升级链路
 - [docs/ADMIN.md](docs/ADMIN.md) — 静态管理面板使用
