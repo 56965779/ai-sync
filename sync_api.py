@@ -3648,11 +3648,33 @@ _EXEC_CAP = {}
 
 
 def _exec_sh_bin():
-    """sh 的真实路径: Android/BusyBox 上 /bin/sh 不一定存在, PATH 里也未必有。"""
+    """sh 的真实路径: Android/BusyBox 上 /bin/sh 不一定存在, PATH 里也未必有。
+    Windows 上优先用 PATH 里的 sh(Git 自带 MSYS2 sh); 找不到时回退常见 Git 安装位置,
+    使 Windows 也能跑通 POSIX exec 协议(无需用户手动配置 PATH)。"""
     for p in ('/bin/sh', '/system/bin/sh', '/usr/bin/sh'):
         if os.access(p, os.X_OK):
             return p
-    return shutil.which('sh') or 'sh'
+    s = shutil.which('sh')
+    if s:
+        return s
+    if os.name == 'nt':
+        # Git for Windows / 便携 Git 常见位置
+        candidates = []
+        gi = os.environ.get('GIT_INSTALL_ROOT')
+        if gi:
+            candidates.append(gi)
+        candidates += [r'D:\WorkBuddyAI\resources\vendor\PortableGit',
+                       r'C:\Program Files\Git', r'C:\Program Files (x86)\Git',
+                       os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Git'),
+                       os.path.join(os.environ.get('USERPROFILE', ''), 'scoop', 'apps', 'git', 'current')]
+        for c in candidates:
+            if not c:
+                continue
+            for sub in ('usr\\bin\\sh.exe', 'bin\\sh.exe', 'usr\\bin\\bash.exe'):
+                cand = os.path.join(c, sub)
+                if os.path.exists(cand):
+                    return cand
+    return 'sh'
 
 
 def _exec_timeout_prefix(timeout):
@@ -3698,11 +3720,57 @@ def _exec_timeout_prefix(timeout):
     return '', False
 
 
+# ============ 跨平台 exec/shell 兼容层 ============
+# Windows 与 POSIX 在「进程/信号/shell」三处不兼容:
+#   1) subprocess shell=True 在 Windows 上调用 cmd.exe, 而 exec/shell 协议是 POSIX 语法
+#      (; $? 2>/dev/null sh -s 管道), cmd.exe 无法解释 -> 直接失败("拒绝访问"/"系统找不到指定的路径");
+#   2) os.killpg / os.getpgid 在 Windows 不存在; 3) signal.SIGKILL 在 Windows 未定义。
+# 以下封装统一抹平, 使同一套 POSIX 协议在 Windows(Git 自带 MSYS2 sh)与 Linux 都能跑。
+_SIGTERM = getattr(signal, 'SIGTERM', 15)
+_SIGKILL = getattr(signal, 'SIGKILL', 9)
+
+
+def _posix_shell_spawn(cmd, **kwargs):
+    """以 POSIX shell 解释 cmd 并启动子进程(对应旧 subprocess.Popen(cmd, shell=True))。
+    Windows 显式用 _exec_sh_bin() 作解释器(shell=False); POSIX 上 _exec_sh_bin() 即 /bin/sh, 等价。"""
+    if os.name == 'nt':
+        sh = _exec_sh_bin()
+        return subprocess.Popen([sh, '-c', cmd], shell=False, **kwargs)
+    return subprocess.Popen(cmd, shell=True, **kwargs)
+
+
+def _posix_shell_run(cmd, **kwargs):
+    """对应旧 subprocess.run(cmd, shell=True), 跨平台以 POSIX shell 解释。"""
+    if os.name == 'nt':
+        sh = _exec_sh_bin()
+        return subprocess.run([sh, '-c', cmd], shell=False, **kwargs)
+    return subprocess.run(cmd, shell=True, **kwargs)
+
+
+def _get_pgid(pid):
+    """POSIX 返回进程组 id; Windows 无进程组概念, 直接返回 pid。"""
+    if os.name == 'nt':
+        return pid
+    try:
+        return os.getpgid(pid)
+    except Exception:
+        return pid
+
+
 def _exec_kill_tree(pid, sig):
-    """先杀进程组再杀自己: 只 kill sh 会留下仍在跑的子孙进程。"""
+    """跨平台整树强杀: POSIX 用 killpg; Windows 用 taskkill /T /F(进程组概念不存在)。"""
+    if os.name == 'nt':
+        try:
+            subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except Exception:
+            try:
+                os.kill(pid, _SIGTERM if sig is None else sig)
+            except Exception:
+                pass
+        return
     try:
         os.killpg(os.getpgid(pid), sig)
-        return
     except Exception:
         pass
     try:
@@ -3780,7 +3848,7 @@ def action_exec(req, cfg):
     t0 = time.time()
     try:
         # start_new_session: 超时时可整组强杀, 否则只杀 sh, 子孙进程继续跑并占着输出管道
-        proc = subprocess.Popen(wrapped, shell=True, cwd=exec_cwd, stdin=subprocess.PIPE,
+        proc = _posix_shell_spawn(wrapped, cwd=exec_cwd, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env,
                                 start_new_session=True)
     except Exception as e:
@@ -3801,53 +3869,57 @@ def action_exec(req, cfg):
             proc.stdin.close()
         except Exception:
             pass
-    # 非阻塞读取
-    import select
-    import fcntl
-    for s in (proc.stdout, proc.stderr):
-        fcntl.fcntl(s, fcntl.F_SETFL, fcntl.fcntl(s, fcntl.F_GETFL) | os.O_NONBLOCK)
-    while time.time() < end_ts:
-        # 进程已结束: 立即 drain 并退出 (避免 EOF 管道持续被判为"可读"导致死等 end_ts)
-        if proc.poll() is not None:
-            try:
-                so, se = proc.communicate(timeout=2)
-                stdout += so or b''
-                stderr += se or b''
-            except Exception:
-                pass
-            break
-        try:
-            rlist, _, _ = select.select([proc.stdout, proc.stderr], [], [], 0.2)
-        except (ValueError, OSError):
-            break
-        if not rlist:
-            continue
-        for s in rlist:
-            try:
-                chunk = s.read(65536)
-            except (BlockingIOError, OSError):
-                chunk = b''
-            if not chunk:
-                continue
-            if s is proc.stdout:
-                stdout += chunk
-            else:
-                stderr += chunk
-            if len(stdout) + len(stderr) >= max_output:
-                truncated = True
+    # 跨平台读取: POSIX 用 select+非阻塞; Windows 用线程读(select 不支持管道)
+    if _fcntl is not None:
+        import select
+        for s in (proc.stdout, proc.stderr):
+            _set_nonblocking(s)
+        while time.time() < end_ts:
+            # 进程已结束: 立即 drain 并退出 (避免 EOF 管道持续被判为"可读"导致死等 end_ts)
+            if proc.poll() is not None:
+                try:
+                    so, se = proc.communicate(timeout=2)
+                    stdout += so or b''
+                    stderr += se or b''
+                except Exception:
+                    pass
                 break
-        if truncated:
-            break
+            try:
+                rlist, _, _ = select.select([proc.stdout, proc.stderr], [], [], 0.2)
+            except (ValueError, OSError):
+                break
+            if not rlist:
+                continue
+            for s in rlist:
+                try:
+                    chunk = s.read(65536)
+                except (BlockingIOError, OSError):
+                    chunk = b''
+                if not chunk:
+                    continue
+                if s is proc.stdout:
+                    stdout += chunk
+                else:
+                    stderr += chunk
+                if len(stdout) + len(stderr) >= max_output:
+                    truncated = True
+                    break
+            if truncated:
+                break
+    else:
+        _so, _se, truncated = _drain_pipes_threaded(proc, end_ts, max_output)
+        stdout += _so
+        stderr += _se
     # 截止时间兜底: 先 TERM 进程组, 再 KILL; 记录 hit_deadline 以便如实报 124
     if proc.poll() is None:
         hit_deadline = True
-        _exec_kill_tree(proc.pid, signal.SIGTERM)
+        _exec_kill_tree(proc.pid, _SIGTERM)
         try:
             proc.wait(timeout=2)
         except Exception:
             pass
         if proc.poll() is None:
-            _exec_kill_tree(proc.pid, signal.SIGKILL)
+            _exec_kill_tree(proc.pid, _SIGKILL)
         timed_out = True
     try:
         so, se = proc.communicate(timeout=5)
@@ -6365,8 +6437,8 @@ def action_batch_deploy(req, cfg):
                             'post_check shell 命令需要 exec 权限且 scope 开启 exec_enabled',
                             {'hint': 'HTTP(S) URL 检查无需 exec 权限; shell 命令需 exec 权限'})
             try:
-                pr = subprocess.run("timeout -k 3 -s TERM 15 sh -c " + "'" + post_check.replace("'", "'\\''") + "' 2>&1",
-                                    shell=True, cwd=cfg['WORK_DIR'], capture_output=True, text=True, timeout=25)
+                pr = _posix_shell_run("timeout -k 3 -s TERM 15 sh -c " + "'" + post_check.replace("'", "'\\''") + "' 2>&1",
+                                    cwd=cfg['WORK_DIR'], capture_output=True, text=True, timeout=25)
                 post_out = (pr.stdout + pr.stderr).strip()
                 post_rc = pr.returncode
             except Exception:
@@ -7476,8 +7548,56 @@ def action_pipeline(req, cfg):
 # ==================== shell (对齐原生 ssh 的持久会话工具, 面向 AI 易用性) ====================
 # 与 exec 并存: exec 是单发命令; shell 是带持久 cwd/env 的会话, SSH 般可连续操作。
 import uuid as _uuid
-import fcntl as _fcntl
+try:
+    import fcntl as _fcntl
+except Exception:
+    _fcntl = None  # Windows: 无 fcntl 模块, 非阻塞套接字/文件锁走降级路径
 import select as _select
+
+
+def _set_nonblocking(stream):
+    """POSIX: 把管道/套接字设为非阻塞; Windows: 无操作(改用线程读)。"""
+    if _fcntl is None:
+        return
+    try:
+        _fcntl.fcntl(stream, _fcntl.F_SETFL, _fcntl.fcntl(stream, _fcntl.F_GETFL) | os.O_NONBLOCK)
+    except OSError:
+        pass
+
+
+def _drain_pipes_threaded(proc, end_ts, max_output):
+    """Windows 无 select(管道)/fcntl: 用线程并发读 stdout/stderr, 到 end_ts 或进程退出为止。"""
+    import threading
+    buckets = {'o': bytearray(), 'e': bytearray()}
+    stop = threading.Event()
+
+    def _rd(src, key):
+        try:
+            while not stop.is_set():
+                chunk = src.read(65536)
+                if not chunk:
+                    break
+                buckets[key].extend(chunk)
+                if len(buckets['o']) + len(buckets['e']) >= max_output:
+                    stop.set()
+                    break
+        except Exception:
+            pass
+
+    t1 = threading.Thread(target=_rd, args=(proc.stdout, 'o'))
+    t2 = threading.Thread(target=_rd, args=(proc.stderr, 'e'))
+    t1.daemon = True
+    t2.daemon = True
+    t1.start()
+    t2.start()
+    while time.time() < end_ts and proc.poll() is None:
+        time.sleep(0.05)
+    stop.set()
+    t1.join(timeout=1)
+    t2.join(timeout=1)
+    truncated = (len(buckets['o']) + len(buckets['e']) >= max_output)
+    return bytes(buckets['o']), bytes(buckets['e']), truncated
+
 
 SHELL_SESSIONS = {}      # sid -> {'cwd','env','ts','name'}
 SHELL_JOBS = {}          # jid -> {...}
@@ -8083,36 +8203,40 @@ def _shell_stream(proc, timeout, max_output, grace=6):
     stdout, stderr = b'', b''
     truncated = False
     hit_deadline = False
-    for s in (proc.stdout, proc.stderr):
-        try: _fcntl.fcntl(s, _fcntl.F_SETFL, _fcntl.fcntl(s, _fcntl.F_GETFL) | os.O_NONBLOCK)
-        except OSError: pass
     t0 = time.time()
     end_ts = t0 + timeout + grace
-    while time.time() < end_ts:
-        if proc.poll() is not None:
-            break
-        try:
-            rlist, _, _ = _select.select([proc.stdout, proc.stderr], [], [], 0.2)
-        except (ValueError, OSError):
-            break
-        if not rlist:
-            continue
-        for s in rlist:
-            try: chunk = s.read(65536)
-            except (BlockingIOError, OSError): chunk = b''
-            if not chunk: continue
-            if s is proc.stdout: stdout += chunk
-            else: stderr += chunk
-            if len(stdout) + len(stderr) >= max_output:
-                truncated = True; break
-        if truncated: break
+    if _fcntl is not None:
+        for s in (proc.stdout, proc.stderr):
+            _set_nonblocking(s)
+        while time.time() < end_ts:
+            if proc.poll() is not None:
+                break
+            try:
+                rlist, _, _ = _select.select([proc.stdout, proc.stderr], [], [], 0.2)
+            except (ValueError, OSError):
+                break
+            if not rlist:
+                continue
+            for s in rlist:
+                try: chunk = s.read(65536)
+                except (BlockingIOError, OSError): chunk = b''
+                if not chunk: continue
+                if s is proc.stdout: stdout += chunk
+                else: stderr += chunk
+                if len(stdout) + len(stderr) >= max_output:
+                    truncated = True; break
+            if truncated: break
+    else:
+        _so, _se, truncated = _drain_pipes_threaded(proc, end_ts, max_output)
+        stdout += _so
+        stderr += _se
     if proc.poll() is None:
         hit_deadline = True
-        _exec_kill_tree(proc.pid, signal.SIGTERM)
+        _exec_kill_tree(proc.pid, _SIGTERM)
         try: proc.wait(timeout=2)
         except Exception: pass
         if proc.poll() is None:
-            _exec_kill_tree(proc.pid, signal.SIGKILL)
+            _exec_kill_tree(proc.pid, _SIGKILL)
     try:
         so, se = proc.communicate(timeout=5)
         stdout += so or b''; stderr += se or b''
@@ -8228,8 +8352,8 @@ def action_shell_run(req, cfg):
         out = os.path.join(d, jid + '.out'); errf = os.path.join(d, jid + '.err')
         try:
             fout = open(out, 'wb'); ferr = open(errf, 'wb')
-            proc = subprocess.Popen(proc_cmd,
-                                    shell=True, cwd=_shell_popen_cwd(start_abs), stdout=fout, stderr=ferr,
+            proc = _posix_shell_spawn(proc_cmd,
+                                    cwd=_shell_popen_cwd(start_abs), stdout=fout, stderr=ferr,
                                     stdin=subprocess.DEVNULL, env=env, start_new_session=True)
         except Exception as e:
             return fail(E['INTERNAL'], 'proc_open_fail', str(e))
@@ -8246,8 +8370,8 @@ def action_shell_run(req, cfg):
                    'timeout_enforced': has_timeout,
                    'warnings': _shell_warnings_field(_g['warn']), 'tip': tip})
     try:
-        proc = subprocess.Popen(proc_cmd,
-                                shell=True, cwd=_shell_popen_cwd(start_abs), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        proc = _posix_shell_spawn(proc_cmd,
+                                cwd=_shell_popen_cwd(start_abs), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 stdin=subprocess.DEVNULL, env=env, start_new_session=True)
     except Exception as e:
         return fail(E['INTERNAL'], 'proc_open_fail', str(e))
@@ -8381,9 +8505,7 @@ def action_shell_kill(req, cfg):
     was_done = bool(job.get('done')) or _shell_job_finished(job)
     if not was_done:
         try:
-            pgid = os.getpgid(job['pid'])
-            try: os.killpg(pgid, 15)
-            except Exception: os.kill(job['pid'], 15)
+            _exec_kill_tree(job['pid'], 15)
         except Exception:
             try: os.kill(job['pid'], 15)
             except Exception: pass

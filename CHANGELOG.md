@@ -7,10 +7,32 @@
 
 ---
 
+## 未发布 — Python 服务端 Windows 兼容（2026-11-05）
+
+**改动 `sync_api.py`**（客户端 `sync.py` 未改，`whoami.client_md5` 不变，不触发客户端自动升级）。
+本次在本机 Windows（Python 3.13.12）实测跑通。
+
+### 修复
+- **模块级 `import fcntl` 崩溃**：原 `import fcntl as _fcntl` 在 Windows 直接 `ModuleNotFoundError`，
+  服务端连启动都到不了。改为 `try/except` 降级（`_fcntl=None`），无 `select(管道)` 时读取子进程输出
+  改用线程读管道（`_drain_pipes_threaded`）。
+- **`exec`/`shell` 在 Windows 上「拒绝访问」**：`subprocess(... shell=True)` 在 Windows 走 `cmd.exe`，
+  而 exec/shell 协议是 POSIX 语法（`; $? 2>/dev/null sh -s` 管道），`cmd.exe` 无法解释。
+  新增 `_posix_shell_spawn` / `_posix_shell_run`，Windows 显式以 Git 自带 MSYS2 `sh` 为解释器。
+- **`os.killpg` / `os.getpgid` / `signal.SIGKILL` 在 Windows 不存在**：`_exec_kill_tree` 在 Windows
+  改用 `taskkill /T /F` 整树强杀；`action_shell_kill` 同步改用跨平台封装。
+- `_exec_sh_bin()` 增加 Windows Git 路径回退，PATH 里没有 `sh` 时自动找常见 Git 安装位置。
+
+### 实测（Windows / Python 3.13.12，`sync_api.py --port 8900` 明文 HTTP）
+`ping` / `whoami` / `--auto pull` / `health` / `doctor` / `exec`（异步协议 + cwd + 文件写回）/
+超时 `sleep 30 --timeout 3` → `rc=124`（9.8s 返回）/ `shell` 持久会话 全部通过。
+
+---
+
 ## 未发布 — 仓库维护（2026-11-05）
 
-只改仓库工程化与文档一致性，**不动任何 `sync.py` / `sync_api.*` 的字节**，
-因此不触发全网自动升级，`APP_VERSION` 保持 `v4.39.4`。
+本批只改仓库工程化与文档一致性，**不改 `sync.py`**（`sync_api.py` 的 Windows 兼容修复见上一节），
+因此 `whoami.client_md5` 不变、不触发客户端自动升级，`APP_VERSION` 保持 `v4.39.4`。
 
 ### 新增
 - `.gitignore`：此前只存在于文档描述里，仓库实际没有。缺少它时，按 README 执行

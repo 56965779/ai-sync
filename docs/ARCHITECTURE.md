@@ -33,7 +33,7 @@ action 集合、错误码、响应信封。选哪份取决于部署环境：
 |---|---|---|
 | PHP + nginx/php-fpm | 生产首选（实测） | 无第三方依赖 |
 | PHP 内置服务器 `php -S` | 本地调试 | 绝不绑公网 |
-| Python `sync_api.py` | 无 PHP 环境 | 仅 POSIX（依赖 `fcntl`）；Windows 启动即失败 —— **已知未覆盖边界** |
+| Python `sync_api.py` | 无 PHP 环境 | POSIX 与 Windows 均可用（`fcntl` 已降级 + 线程读管道；Windows 的 `exec`/`shell` 经 Git 自带 MSYS2 `sh`，需 `sh` 在 PATH） |
 | Python + TLS | 需要原生 TLS 反向代理 | `--tls-cert/--tls-key` |
 
 > **自动升级通道只依赖 `sync.py` 分发的那份**。服务端 `whoami.client_md5` 取同目录

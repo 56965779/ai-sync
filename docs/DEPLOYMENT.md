@@ -129,15 +129,18 @@ python3 sync_api.py --config sync_config.json \
 
 **实测结论**：
 
-- ❌ Windows：`python3 sync_api.py --help` 直接崩在模块级 `import fcntl as _fcntl`
-  （`sync_api.py:7479`），`ModuleNotFoundError: No module named 'fcntl'`，
-  连 argparse 都到不了。客户端 `sync.py` 有 `fcntl→msvcrt` 降级，服务端没有。
+- ✅ Windows（2026-11-05 修复并实测，Python 3.13.12）：`fcntl` 已改为 `try/except` 降级，
+  启动不再 `ModuleNotFoundError`；无 `select(管道)` 时读取子进程输出改用线程读管道；
+  `exec`/`shell` 协议由 Git 自带 MSYS2 `sh` 解释（`shell=True` 在 Windows 上会走 `cmd.exe` 破坏 POSIX 语法，
+  已改为显式 `sh -c`），超时用 `taskkill /T /F` 整树强杀。实测 `ping` / `whoami` / `--auto pull` /
+  `exec`（异步协议 + cwd + 文件写回）/ 超时 `rc=124` / `shell` 持久会话全部通过。
+  **前提：Git for Windows 的 `sh` 在 PATH**（`_exec_sh_bin()` 亦会回退常见 Git 安装路径）；纯文件类 action 不依赖 `sh`。
 - ✅ POSIX：2026-11-05 实机跑通（Linux + Python 3.8.20）。`python3.8 sync_api.py --config sync_config.json --host 127.0.0.1 --port 8900` 启动日志为 `listening on http://127.0.0.1:8900 (tls=False)`，`ping` 返回 200。不传 `--tls-cert/--tls-key` 时走明文 HTTP，只适合本机调试。
 - 仓库里的 Python 服务端已补 `client_download`（`_client_meta` + 流式分发），
   但**历史部署的 Python 端可能没有这个 action**，切 API_URL 过去会导致自升级失效。
   用 `{"action":"help"}` 确认 `available_actions` 里有没有 `client_download`。
 
-Windows 上请用 PHP 服务端（WSL / 容器 / 远程 Linux 亦可）。
+Windows 上可直接用 Python 服务端（需 Git 自带的 `sh` 在 PATH，用于 `exec`/`shell`；纯文件同步类 action 无需 `sh`）。也可用 PHP 服务端（WSL / 容器 / 远程 Linux）。
 
 ---
 

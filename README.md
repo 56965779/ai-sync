@@ -43,7 +43,7 @@
 | 边界测试 | ✅ 实测 | 16 组：日志源缺失、采集失败、老服务端降级、Python 3.13 严格警告、进度折叠等 |
 | CI（GitHub Actions） | ✅ 实测 | 6 个 job 全绿：Python 3.8 / 3.12、PHP 8.0 / 8.3、双端契约一致性、文档链接与占位符 |
 | 本地 `php -S` 试跑 | ✅ 实测（2026-11-05 复跑） | PHP 8.1.2：`php -S 127.0.0.1:8899 -t .` 起服务，`ping` 返回 200；Python 3.8.20 客户端 `--whoami` / `--auto pull` 端到端通过（2 个文件，落盘 MD5 三方一致） |
-| Python 服务端 | ✅ POSIX / ❌ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 上**启动即失败**（`import fcntl` 无降级） |
+| Python 服务端 | ✅ POSIX / ✅ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 实机跑通（Python 3.13.12）：`ping` / `whoami` / `--auto pull` / `health` / `doctor` / `exec`（异步协议 + cwd + 文件写回）/ 超时 `rc=124` / `shell` 持久会话全部通过。Windows 需 Git 自带 `sh` 在 PATH（`fcntl` 已降级、`exec` 经 MSYS2 `sh`） |
 | macOS / 管理面板浏览器流程 | ⚠️ 未实测 | 客户端有代码级降级保护，但未实机验证 |
 
 数据细节见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)。
@@ -93,7 +93,7 @@ cd ai-sync
 
 - 客户端：Python 3.8+（纯标准库；实测 3.8.20 / 3.12 / 3.13.14，其中 3.8 与 3.12 由 CI 每次 push 复跑）
 - PHP 服务端：PHP 8.0+，nginx + php-fpm 或 Apache（实测形态）；8.0 / 8.3 由 CI 全量 `php -l` 覆盖，8.1.2 另做过 `php -S` 端到端
-- Python 服务端：Python 3.8+，**当前仅 POSIX**（Windows 有 `fcntl` 依赖，见已知边界）
+- Python 服务端：Python 3.8+，POSIX 与 Windows 均可用（`fcntl` 已改为 `try/except` 降级 + 线程读管道；Windows 的 `exec`/`shell` 经 Git 自带 MSYS2 `sh` 解释，需 `sh` 在 PATH）
 
 下载完先做两件事，避免把凭据提交进仓库：
 
@@ -388,7 +388,7 @@ curl -s -X POST ... -d '{"action":"help","name":"upload",...}'
 
 | 边界 | 说明 |
 |---|---|
-| Python 服务端 Windows 不可用 | `sync_api.py` 模块级 `import fcntl` 无降级，Windows 启动即 `ModuleNotFoundError`；客户端本身有 `fcntl→msvcrt` 降级，Windows 实测可用。 |
+| Python 服务端 Windows | 现已可用：`fcntl` 改为 `try/except` 降级 + 线程读管道，启动不再崩溃；`exec`/`shell` 协议经 Git 自带 MSYS2 `sh` 解释（需 `sh` 在 PATH，Git for Windows 自带）。纯文件类 action（`ping`/`upload`/`download`/`pull`/`push`/`ls`/`cat` 等）无需 `sh` 即可用。 |
 | 双端协议等价有缺口 | 仓库里的 Python 服务端已补 `client_download`；但历史部署的 Python 端可能没有该 action，切过去会让自升级失效。用 `{"action":"help"}` 确认。 |
 | 自升级无签名 | 只做 MD5 + `py_compile`，见上。 |
 | 日志时间窗口 | 部分 PHP 日志格式（`[04-Nov-2026 05:54:08 UTC]`）不匹配 24h 窗口解析，且本地时间与服务端 UTC 可能有偏移；以 `top_errors` / `known_noise` 为准。 |

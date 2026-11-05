@@ -2,7 +2,7 @@
 
 > 本节全部数字来自本项目的真实运行（Windows 11 客户端 `sync.py` + Termux/nginx/php-fpm 服务端，
 > HTTPS 公网链路）。标注「源码注释」的为代码内自带说明，未在本机独立复跑。
-> 2026-11-05 补充：本地 `php -S`（PHP 8.1.2）与 POSIX 上的 Python 服务端都已实机跑通，数字见第 9 节；仍未实测：Windows 服务端、macOS。
+> 2026-11-05 补充：本地 `php -S`（PHP 8.1.2）、POSIX 上的 Python 服务端、以及 **Windows 上的 Python 服务端**（Python 3.13.12，`exec`/`shell`/超时全链路）都已实机跑通，数字见第 9 节；仍未实测：macOS。
 
 ---
 
@@ -82,7 +82,7 @@
 | 最小 PATH / `php -n` 无扩展 / `LC_ALL=C` / 原生 TLS | 实测 |
 | Android Termux | 实测（本项目服务端即运行于此） |
 | Windows 客户端 `sync.py` | 实测（本机），含 `fcntl → msvcrt` 降级 |
-| Windows 服务端 `sync_api.py` | **未覆盖**：模块级 `import fcntl` 启动即失败 |
+| Windows 服务端 `sync_api.py` | 实测（Python 3.13.12）：`fcntl` 降级 + 线程读管道；`exec` 异步协议 / 超时 `rc=124`（taskkill）/ `shell` 持久会话均通过 |
 | macOS | 代码级降级保护，未实机运行 |
 
 ## 9. 本地复跑（2026-11-05）
