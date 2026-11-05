@@ -183,3 +183,48 @@ EOF
 | `--auto pull` | `pulled=11`，`failed=0`，MD5 三方校验通过 |
 
 相关：面板本身的用法见 [ADMIN.md](ADMIN.md)，服务端部署见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+
+## 八、整条链路的一次完整实测（2026-11-05）
+
+不是"读源码推断"，是真的点了一遍：[SELF-TEST.md](SELF-TEST.md) 是逐条原始记录。这里是结论。
+
+### 人这边：面板九步
+
+| 步 | 动作 | 实测到的 |
+|---|---|---|
+| 1-2 | 打开 `admin.html`，填 `admin_token` 登录 | 仪表盘显示版本、scope、身份 `admin` |
+| 3 | 目录授权：scope 名 + `work_dir` + 备份份数 + 允许 PHP | 列表出现新 scope，**文件数自动统计** |
+| 4 | Token 管理：名称 + scope + 勾权限 | 生成明文 token；留空不会自动生成，只弹「请填写 Token、名称和至少一个 Scope」 |
+| 5 | 客户端打包：选 token + scope + 模式 | 219.5KB zip，SHA256、包内文件清单都在页面上 |
+| 6 | 复制 `pkg_key` 链接 / 直接下载 | `200` / `224722` 字节 |
+| 7-9 | 交给 AI：自举 → `--whoami` → `--auto pull` | `scope` 正确、`exec=true`、`pulled=3`、`failed=0`、三方 MD5 |
+
+### AI 这边：能测到什么，取决于 token
+
+打包给 AI 的普通 token（`read/write/delete/exec/lint/backup`）只有 **52 / 67** 个 action。缺的 15 个要 `admin_token`：
+
+```
+admin_stats  audit_log  client_package  config_get  config_reload  oplog_list
+oplog_view   package_delete  package_list  scope_add  scope_delete
+scopes_list  token_add  token_delete  tokens_list
+```
+
+所以"AI 拿到包后把功能全测一遍"要分两步：普通 token 测业务能力（52 个），管理能力另用 admin token 验证（15 个）。这不是缺陷，是权限边界。
+
+### 三个扩展没装时的真实表现
+
+| 缺什么 | 表象 | 怎么发现 |
+|---|---|---|
+| `zip` | 面板不报错，直接降级：「服务器无 ZipArchive 扩展, 返回 sync.conf 内容」，只给一个 `sync.conf` | 打包页文字 |
+| `mbstring` | `exec` / `search` / `shell_run` 全部 `1099 exception`，`message` 只有 "Internal server error" | `audit_log` 的 `exception` 字段：`Call to undefined function mb_substr()` |
+| `curl` | `webhook_test` 同样是 `1099 exception` | `audit_log`：`Call to undefined function curl_init()` |
+
+还有一条最容易浪费时间的：**装完扩展不重启 PHP 进程 = 没装**。`apt install php-zip` 成功、`php -m` 能看到 `zip`，面板照样报缺 —— 因为 `php -S` / `php-fpm` 是在安装之前启动的，扩展只在进程启动时加载。
+
+### 定位 1099 的正确姿势
+
+```bash
+curl -s -X POST <API> -H 'Content-Type: application/json' \
+  -d '{"action":"audit_log","lines":20,"token":"<admin_token>"}' \
+  | grep -o '"exception": "[^"]*"'
+```
