@@ -1,12 +1,23 @@
 # ai-sync
 
-> **给 AI 用的服务器遥控器。**
-> 一个零依赖的 Python 文件，把「在服务器上读写文件、改代码、跑命令」变成 **67 个带 JSON 契约的 API**。
-> Agent 不用 SSH、不用猜命令输出、不用怕改错 —— 每一步都能预览、校验、复验、一键回滚。
+> **给 AI 用的服务器遥控器 —— 一个文件，替掉整套 SSH 手工活。**
+>
+> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **67 个带 JSON 契约的远程能力**：
+> 读文件、找代码、改代码、跑命令、部署、回滚。输出恒为 `{"ok":true,...}`，
+> Agent 不用 SSH、不用猜输出、不用怕改错 —— 每步都能预览、校验、复验、一键撤销。
 
-**AI 专用 · 跨设备 · 跨平台 · 零依赖**：在服务器上装好服务端，任何能跑 Python 的设备都能远程管理文件、编写并发布代码、运维服务器。
+```bash
+python3 sync.py --workdir ~/my-server   # 一次自举，配置回写，末行 READY
+python3 sync.py --whoami                # 权限边界 + 服务端能力清单，一次拿全
+python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三方一致
 
-`MIT` · `Python 3.8+` · `67 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
+# 每条命令的返回都是这个形状，直接断言字段：
+# {"ok":true,"code":0,"stdout":"...","stderr":"","command":"..."}
+```
+
+**AI 专用 · 跨设备 · 跨平台 · 零依赖**：笔记本、手机 Termux、容器、CI runner、另一台服务器，装好服务端就能用。
+
+`MIT` · `Python 3.8+` · `PHP 8.0+` · `67 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
 
 [![CI](https://github.com/56965779/ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/56965779/ai-sync/actions/workflows/ci.yml)
 
@@ -106,9 +117,16 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 # 二、部署
 
-## 2.1 配置服务端
+两种服务端**选一个**，客户端完全一样：
 
-编辑 `sync_config.json`。模板默认是**收紧**的，建议保留这些值：
+| 你的机器 | 走哪条 | 难在哪 |
+|---|---|---|
+| 有 PHP + nginx/Apache 的主机、虚拟主机、Termux | **路径 A：PHP 服务端** | 配置别留在 Web 根 |
+| 只有 Python（VPS、容器、Windows、NAS） | **路径 B：Python 服务端** | 自己管进程与端口 |
+
+---
+
+## 2.1 配置服务端（两条路径共用同一份 `sync_config.json`）
 
 ```json
 {
@@ -129,73 +147,188 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
   "scopes": {
     "works": {
       "work_dir": "/absolute/path/to/your/workdir",
-      "exec_enabled": false
+      "exec_enabled": false,
+      "exec_allow_ips": []
     }
   }
 }
 ```
 
-必改三处：
+**必改四处**（不改等于把服务器交出去）：
 
-1. `admin_token` 与 `tokens` 的键 → 全部换成 **32 字节以上随机值**
-   （`python3 -c "import secrets;print(secrets.token_hex(32))"`）。
-2. `scopes.works.work_dir` → 绝对路径，服务进程有读写权限。
-3. `allow_ips` → 填你的出口 IP；不要把空数组带到公网。
+1. `tokens` 的**键** 和 `admin_token` → 全换成 32 字节以上随机值：
+   `python3 -c "import secrets;print(secrets.token_hex(32))"`
+2. `scopes.works.work_dir` → 绝对路径，服务进程要能读写。这是文件操作的根，客户端里的前导 `/` 不是服务器绝对路径
+3. `allow_ips` → 填客户端出口 IP；**空数组别带公网**
+4. `exec_enabled` → 默认 `false`，要远程执行命令再开，并配 `exec_allow_ips`
 
-> ⚠️ `sync_config.json` 与 `sync_api.php` 同目录时，nginx 会把它当静态文件直接返回。
-> **上线前必须**用 `AI_SYNC_CONFIG_FILE` 把配置移出 Web 根，或加
-> `location = /path/sync_config.json { deny all; }`。详见 [SECURITY.md](SECURITY.md)。
+`permissions` 可选：`read` / `write` / `delete` / `lint` / `backup` / `exec` / `admin`。
 
-## 2.2 部署文件到 Web 目录（实测形态）
+> ⚠️ **配置留在 Web 根 = 明文 token 可被直接下载**。PHP 端上线前必须二选一：
+> 用 `AI_SYNC_CONFIG_FILE` 把配置移出 Web 根，或加 `deny` 规则。详见 [SECURITY.md](SECURITY.md)。
+> Python 端不适用（它只处理 JSON 请求，不吐静态文件）。
 
-把以下四项放到**同一个** Web 可访问目录：
+---
+
+## 2.2 路径 A：PHP 服务端
+
+### 前置条件
+
+- **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`（按字节截断用）、`zip`（生成客户端安装包用）
+- 一个把 `.php` 交给 php-fpm 的 Web 服务；**只在本机验证**时不用装 nginx，直接用 `php -S`
+
+### 放文件：五项必须在同一目录
 
 ```
-sync_api.php
-sync.py            ← 分发版客户端，必须同目录
-tools/             ← 整个目录
-sync_config.json   ← 或按上一步用 AI_SYNC_CONFIG_FILE 外移
+<WEB_ROOT>/server/
+├── sync_api.php      ← 唯一对外暴露的入口，67 个 action 都走它
+├── sync.py           ← 分发版客户端，必须同目录：whoami.client_md5 拿它算 MD5
+├── tools/            ← 11 个 PHP 工具模块，按需加载，路径写死为「入口同目录/tools/」
+├── sync_config.json  ← 或用 AI_SYNC_CONFIG_FILE 外移
+└── admin.html        ← 管理面板，要用面板就放这里（见 2.4）
 ```
 
-nginx + php-fpm 最小要点：
+### nginx 最小可用配置
 
 ```nginx
-location ~ \.php$ {
-    include fastcgi_params;
-    fastcgi_pass 127.0.0.1:9000;          # 按你的 php-fpm 实际监听改
-    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    # 推荐：把配置移出 Web 根
-    # fastcgi_param AI_SYNC_CONFIG_FILE /etc/ai-sync/sync_config.json;
+server {
+    listen 443 ssl;
+    server_name your-server.example;
+    root /path/to/webroot;
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass 127.0.0.1:9000;          # 按你的 php-fpm 实际监听改
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        # 推荐：配置外移（同时删掉目录里的 sync_config.json）
+        # fastcgi_param AI_SYNC_CONFIG_FILE /etc/ai-sync/sync_config.json;
+    }
+
+    # 配置没外移时必须有；路径照你的真实 URL 写
+    location = /server/sync_config.json { deny all; return 404; }
 }
-# 若配置仍在 Web 根，这条必须有
-location = /path/sync_config.json { deny all; }
 ```
 
-Python 服务端（POSIX，原生 TLS）：
+Apache：把 `SetEnv AI_SYNC_CONFIG_FILE /etc/ai-sync/sync_config.json` 放进 vhost，其余相同。
+
+### 不装 nginx 也能先验证（已实测）
 
 ```bash
-python3 sync_api.py --config sync_config.json \
-  --host 127.0.0.1 --port 8900 \
+cd <那个目录>
+php -S 127.0.0.1:8899 -t .
+```
+
+另开一个终端：
+
+```bash
+curl -s -X POST http://127.0.0.1:8899/sync_api.php \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"ping","token":"<客户端token>","scope":"works"}'
+```
+
+返回 `{"ok":true,"code":0,...}`、带 `version` 与 67 个 action 清单即成功（PHP 8.1.2 实测 200）。
+再用浏览器开 `http://127.0.0.1:8899/admin.html`，能看到登录页。
+
+---
+
+## 2.3 路径 B：Python 服务端（自带 HTTP 服务，不需要 nginx）
+
+### 前置条件
+
+- **Python 3.8+**
+- POSIX（Linux / macOS / Termux）与 Windows 都能跑；**只有 `exec` / `shell` 需要 `sh`**
+  （Windows 用 Git for Windows 自带的 MSYS2 `sh`；纯文件同步类 action 不需要）
+- 默认明文 HTTP。要 HTTPS 就传证书；不传证书时**只绑 `127.0.0.1` 或内网地址**
+
+### 放文件：三项同一目录
+
+```
+/opt/ai-sync/
+├── sync_api.py
+├── sync_config.json
+└── sync.py            ← client_download 与 whoami.client_md5 需要它同目录
+```
+
+> 不需要 `tools/` —— 那是 PHP 端的工具层，Python 端把 action 实现内联在自己文件里。
+
+### 启动
+
+```bash
+# 明文 HTTP（本机或内网）
+python3 sync_api.py --config sync_config.json --host 127.0.0.1 --port 8900
+
+# HTTPS（公网）
+python3 sync_api.py --config sync_config.json --host 0.0.0.0 --port 5443 \
   --tls-cert /path/fullchain.pem --tls-key /path/privkey.key
 ```
 
-> 本地 `php -S 127.0.0.1:8899 -t .` 已实机跑通（PHP 8.1.2）：`ping` 返回 200，
-> Python 3.8.20 客户端 `--whoami` 与 `--auto pull` 端到端通过。完整形态与排错见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+参数：`--config`（默认同目录 `sync_config.json`）/ `--host`（默认 `0.0.0.0`）/ `--port`（默认 `5443`）/ `--tls-cert` / `--tls-key`。
 
-## 2.3 验证服务端
+实测（Python 3.8.20，Linux）：启动日志 `listening on http://127.0.0.1:8900 (tls=False)`。
+
+### 验证
 
 ```bash
-curl -s -X POST "https://your-server.example/path/sync_api.php" \
+curl -s http://127.0.0.1:8900/healthz
+# → {"ok":true,"service":"ai-sync-python",...}
+
+curl -s -X POST http://127.0.0.1:8900/sync_api.php \
   -H 'Content-Type: application/json' \
-  -d '{"action":"ping","token":"<YOUR_CLIENT_TOKEN>","scope":"works"}'
+  -d '{"action":"ping","token":"<客户端token>","scope":"works"}'
 ```
 
-正常返回 `{"ok":true,"code":0,...}`。重点看 `deployment_warnings`：
+### 客户端怎么指过来
 
-- 若出现 `config_in_webroot` / `admin_token_exposed`（`severity: critical`），**先别往下走**，
-  按 [SECURITY.md](SECURITY.md) 修好再继续。这是实测中真实踩到的坑。
+```text
+API_URL = "http://127.0.0.1:8900/sync_api.php"             # 明文
+API_URL = "https://your-server.example:5443/sync_api.php"  # HTTPS
+```
 
-## 2.4 部署客户端（自举）
+> 历史部署的 Python 端可能没有 `client_download`，切过去会让自动升级失效。
+> 先 `{"action":"help"}` 看 `available_actions` 里有没有它。
+
+---
+
+## 2.4 管理面板 `admin.html`（人工巡检用，可选）
+
+纯静态单页，不用构建。它只是同一套 67 个 action 的可视化壳。
+
+### 放哪、怎么打开
+
+| 服务端 | 怎么托管 | 打开地址 |
+|---|---|---|
+| PHP 端 | 丢进 `sync_api.php` 同目录 | `https://your-server.example/server/admin.html` |
+| Python 端 | `sync_api.py` **不托管静态文件**，用任一静态服务托管（或本地 `file://` 打开） | 登录框里填完整 `API URL`，例如 `http://127.0.0.1:8900/sync_api.php`（服务端已回显 CORS） |
+
+> ⚠️ Python 端直接访问 `http://host:8900/admin.html` 会拿到 **HTTP 200 + JSON 错误体**
+> （`{"ok":false,"code":1011,"error":"bad_json"}`），不是页面。200 在这里不代表成功，别被状态码骗了
+> —— 这就是为什么 PY 端必须另找一个静态服务托管面板。实测（Python 3.12.11 + 3.8.20 同结论）。
+
+### 登录
+
+密码框填 **`admin_token`**。普通 token 权限不足，很多模块会 403。
+
+> token 会明文存进浏览器 `localStorage`（键 `ai_sync_admin_token`）。只在可信设备登录，用完点退出。
+
+### 推荐顺序（照这个顺序点，不会卡）
+
+1. **登录**（`admin_token`）
+2. **添加目录授权**：scope 名 + 绝对 `work_dir` —— 这就是所有文件操作的根
+3. **添加 Token**：给客户端单独建一个，只勾 `read/write/delete`；**`admin_token` 绝不下发客户端**；
+   要 `exec` 再单独授予并配 IP 白名单
+4. **打包客户端**：生成 zip（内含预置配置的 `sync.py` / `sync.conf` / `README` / `start.sh`），分发到各设备
+5. **看「服务器状态」**：`deployment_warnings` 必须为空
+
+面板分六组：概览（状态/身份/调用分布/最近变更）、授权（目录与 Token）、文件（浏览/搜索/语法检查/格式化/统计）、
+回滚（备份与批次回滚）、追溯（审计与操作日志）、执行（远程命令、跑 PHP 脚本）。
+逐项与 CLI 的对应关系见 [docs/ADMIN.md](docs/ADMIN.md)。
+
+> 安装包 zip 内含**明文 token**，生成目录不要在 Web 根内（自检会报 `packages_in_webroot`），
+> 下载完把服务器上的副本删掉。
+
+---
+
+## 2.5 部署客户端（自举）
 
 把 `sync.py` + `sync.conf` 放到一个**长期稳定**的目录（例如 `~/ai-sync-client`），
 不要放 `/tmp`；也不要把 `sync.conf` 放进后面的工作目录（否则含 token 的配置会被同步到服务器）。
