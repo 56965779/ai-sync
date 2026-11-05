@@ -69,3 +69,4 @@ desktop.ini
 workspace/
 packages/
 sync_config.json*.lock
+ai-sync-backups/

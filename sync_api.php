@@ -383,6 +383,21 @@ $GLOBALS['HELP_SPEC'] = [
         'ret' => 'actions{name:count},errors[{code,count}],total,since,last_ts',
         'see' => ['admin_stats', 'audit_log'],
     ],
+    'update_check' => [
+        'd' => '查询 GitHub 最新 Release 并与当前版本对比(仅 admin)',
+        'r' => [],
+        'eg' => ['action' => 'update_check'],
+        'ret' => 'current_version,latest_version,update_available,tag,release_url,notes,files_to_update',
+        'see' => ['update_apply'],
+    ],
+    'update_apply' => [
+        'd' => '从 GitHub 下载最新服务端文件并原子覆盖(先备份旧文件到 ai-sync-backups/; 仅 admin)',
+        'r' => [],
+        'o' => ['tag:str 指定版本(默认最新 Release)'],
+        'eg' => ['action' => 'update_apply'],
+        'ret' => 'tag,updated,failed,backup_dir,new_version,files[],note',
+        'see' => ['update_check'],
+    ],
     'bootstrap_status' => [
         'd' => '首次启动状态: 配置文件是否已初始化(无需 token; 面板打开时先调它判断走登录还是初始化)',
         'r' => [],
@@ -2961,6 +2976,8 @@ $ROUTES = [
     // P1-A: error_log
     'error_log'      => 'action_error_log',
     'error_log_list' => 'action_error_log_list',
+    'update_check'    => 'action_update_check',
+    'update_apply'    => 'action_update_apply',
 ];
 
 // ==================== 工具映射 (action => 工具文件名) ====================
@@ -3531,6 +3548,113 @@ function action_config_reload($req, $cfg) {
         'tokens'   => count($new['tokens'] ?? []),
         'scopes'   => count($new['scopes'] ?? []),
         'note'     => 'current request still uses old config; new config takes effect on next request',
+    ]);
+}
+
+// ==================== 服务器自检更新 (仅 admin) ====================
+function _update_version_now() {
+    $head = @file_get_contents(__DIR__ . '/sync.py', false, null, 0, 30000);
+    if (is_string($head) && preg_match('/APP_VERSION\s*=\s*[\'"]([^\'"]+)[\'"]/m', $head, $m)) {
+        return ltrim($m[1], 'v');
+    }
+    return '0.0.0';
+}
+
+function _update_file_list() {
+    $tools = ['backup','batch_deploy','chunked_upload','dev_tools','error_log','exec',
+              'file_crud','link_common','shell','snippet','webhook'];
+    $list = ['sync_api.php','sync_api.py','sync.py','admin.html'];
+    foreach ($tools as $t) $list[] = 'tools/' . $t . '.php';
+    return $list;
+}
+
+function _update_github_latest_tag() {
+    $r = _http_request_simple('https://api.github.com/repos/56965779/ai-sync/releases/latest', [
+        'method'  => 'GET',
+        'timeout' => 8,
+        'headers' => ['User-Agent: ai-sync-server', 'Accept: application/vnd.github+json'],
+    ]);
+    if (!empty($r['error']) || (int)($r['http_code'] ?? 0) !== 200) {
+        return [null, 'github_unreachable: ' . ($r['error'] ?? ('http ' . ($r['http_code'] ?? '?')))];
+    }
+    $j = json_decode($r['body'], true);
+    if (!is_array($j) || empty($j['tag_name'])) return [null, 'github_bad_response'];
+    return [$j, null];
+}
+
+function action_update_check($req, $cfg) {
+    if (empty($cfg['IS_ADMIN'])) {
+        return fail($GLOBALS['E']['FORBIDDEN'], 'admin_only', 'update_check 需要 admin_token');
+    }
+    list($rel, $err) = _update_github_latest_tag();
+    if ($err) return fail($GLOBALS['E']['INTERNAL'], $err, '查询 GitHub 最新版本失败（网络/限流）');
+    $cur = _update_version_now();
+    $lat = ltrim($rel['tag_name'], 'v');
+    return ok([
+        'current_version'  => $cur,
+        'latest_version'   => $lat,
+        'update_available' => version_compare($lat, $cur, '>'),
+        'tag'              => $rel['tag_name'],
+        'release_url'     => $rel['html_url'] ?? '',
+        'notes'            => _utf8_trunc((string)($rel['body'] ?? ''), 800),
+        'files_to_update' => _update_file_list(),
+    ]);
+}
+
+function action_update_apply($req, $cfg) {
+    if (empty($cfg['IS_ADMIN'])) {
+        return fail($GLOBALS['E']['FORBIDDEN'], 'admin_only', 'update_apply 需要 admin_token');
+    }
+    $tag = trim((string)($req['tag'] ?? ''));
+    if ($tag === '') {
+        list($rel, $err) = _update_github_latest_tag();
+        if ($err) return fail($GLOBALS['E']['INTERNAL'], $err, '查询 GitHub 最新版本失败');
+        $tag = $rel['tag_name'];
+    }
+    $tag = ltrim($tag, 'v');
+    $base = 'https://raw.githubusercontent.com/56965779/ai-sync/v' . $tag . '/';
+    $backup_dir = __DIR__ . '/ai-sync-backups/update-' . date('Ymd-His');
+    $results = []; $ok_n = 0; $fail_n = 0;
+    foreach (_update_file_list() as $rel) {
+        $local = __DIR__ . '/' . $rel;
+        $r = _http_request_simple($base . $rel, [
+            'method'  => 'GET', 'timeout' => 30,
+            'headers' => ['User-Agent: ai-sync-server'],
+        ]);
+        $code = (int)($r['http_code'] ?? 0);
+        if (!empty($r['error']) || $code !== 200) {
+            $results[$rel] = ['ok' => false, 'reason' => 'download http ' . $code . ' ' . ($r['error'] ?? '')];
+            $fail_n++; continue;
+        }
+        $body = $r['body'];
+        // 防呆: GitHub 404/错误页是 HTML; .php/.py 绝不许被写成 HTML 错误页 (admin.html 本身就是 HTML, 放行)
+        $is_code_file = (substr($rel, -4) === '.php' || substr($rel, -3) === '.py');
+        if ($is_code_file && (strncasecmp(ltrim($body), '<!DOCTYPE', 9) === 0 || strncasecmp(ltrim($body), '<html', 5) === 0)) {
+            $results[$rel] = ['ok' => false, 'reason' => 'refuse_html_response'];
+            $fail_n++; continue;
+        }
+        if (file_exists($local)) {
+            $bd = dirname($backup_dir . '/' . $rel);
+            if (!is_dir($bd)) @mkdir($bd, 0775, true);
+            @copy($local, $backup_dir . '/' . $rel);
+        }
+        $tmp = $local . '.tmp';
+        if (@file_put_contents($tmp, $body, LOCK_EX) === false || !@rename($tmp, $local)) {
+            $results[$rel] = ['ok' => false, 'reason' => 'write_fail'];
+            $fail_n++; continue;
+        }
+        if (function_exists('opcache_invalidate')) @opcache_invalidate($local, true);
+        $results[$rel] = ['ok' => true, 'bytes' => strlen($body)];
+        $ok_n++;
+    }
+    return ok([
+        'tag'        => 'v' . $tag,
+        'updated'     => $ok_n,
+        'failed'      => $fail_n,
+        'backup_dir'  => $backup_dir,
+        'files'       => $results,
+        'new_version' => _update_version_now(),
+        'note'        => 'php -S 下下个请求即生效; 若用 php-fpm 需 reload 一次',
     ]);
 }
 

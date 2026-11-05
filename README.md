@@ -2,7 +2,7 @@
 
 > **给 AI 用的服务器遥控器 —— 一个文件，替掉整套 SSH 手工活。**
 >
-> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **69 个带 JSON 契约的远程能力**：
+> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **71 个带 JSON 契约的远程能力**：
 > 读文件、找代码、改代码、跑命令、部署、回滚。输出恒为 `{"ok":true,...}`，
 > Agent 不用 SSH、不用猜输出、不用怕改错 —— 每步都能预览、校验、复验、一键撤销。
 
@@ -17,7 +17,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 
 **AI 专用 · 跨设备 · 跨平台 · 零依赖**：笔记本、手机 Termux、容器、CI runner、另一台服务器，装好服务端就能用。
 
-`MIT` · `Python 3.8+` · `PHP 8.0+` · `69 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
+`MIT` · `Python 3.8+` · `PHP 8.0+` · `71 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
 
 [![CI](https://github.com/56965779/ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/56965779/ai-sync/actions/workflows/ci.yml)
 
@@ -70,7 +70,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 ```
 ai-sync/
 ├── sync.py                    # 客户端（单文件、零依赖）+ 服务端分发用的参考客户端
-├── sync_api.php               # PHP 服务端入口（69 action 路由 + 鉴权 + 审计，其中 bootstrap_* 在鉴权之前）
+├── sync_api.php               # PHP 服务端入口（71 action 路由 + 鉴权 + 审计，其中 bootstrap_* 在鉴权之前）
 ├── sync_api.py                # Python 服务端（协议对齐实现）
 ├── sync_config.example.json   # 服务端配置模板（全部 token 为 CHANGE_ME_* 占位符）
 ├── sync.conf.example          # 客户端配置模板
@@ -188,7 +188,7 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 ```
 <WEB_ROOT>/server/
-├── sync_api.php      ← 唯一对外暴露的入口，69 个 action 都走它
+├── sync_api.php      ← 唯一对外暴露的入口，71 个 action 都走它
 ├── sync.py           ← 分发版客户端，必须同目录：whoami.client_md5 拿它算 MD5
 ├── tools/            ← 11 个 PHP 工具模块，按需加载，路径写死为「入口同目录/tools/」
 ├── sync_config.json  ← 或用 AI_SYNC_CONFIG_FILE 外移
@@ -298,7 +298,7 @@ API_URL = "https://your-server.example:5443/sync_api.php"  # HTTPS
 
 ## 2.4 管理面板 `admin.html`（人工巡检用，可选）
 
-纯静态单页，不用构建。它只是同一套 69 个 action 的可视化壳。
+纯静态单页，不用构建。它只是同一套 71 个 action 的可视化壳。
 
 ### 放哪、怎么打开
 

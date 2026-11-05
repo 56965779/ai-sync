@@ -256,6 +256,21 @@ HELP_SPEC = {
         'ret': 'actions{name:count},errors[{code,count}],total,since,last_ts',
         'see': ['admin_stats', 'audit_log'],
     },
+    'update_check': {
+        'd': '查询 GitHub 最新 Release 并与当前版本对比(仅 admin; PHP 端实现)',
+        'r': [],
+        'eg': {'action': 'update_check'},
+        'ret': 'current_version,latest_version,update_available,tag,release_url,notes,files_to_update',
+        'see': ['update_apply'],
+    },
+    'update_apply': {
+        'd': '从 GitHub 下载最新服务端文件并原子覆盖(先备份旧文件; 仅 admin; PHP 端实现)',
+        'r': [],
+        'o': ['tag:str 指定版本(默认最新 Release)'],
+        'eg': {'action': 'update_apply'},
+        'ret': 'tag,updated,failed,backup_dir,new_version,files[],note',
+        'see': ['update_check'],
+    },
     'bootstrap_status': {
         'd': '首次启动状态: 配置文件是否已初始化(无需 token; 面板打开时先调它判断走登录还是初始化)',
         'r': [],
