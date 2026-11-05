@@ -2669,6 +2669,7 @@ $ACTION_PERMS = [
     'tokens_list'    => 'admin', 'token_add'     => 'admin', 'token_delete'  => 'admin',
     'scope_add'      => 'admin', 'scope_delete'  => 'admin', 'audit_log'     => 'admin',
     'admin_stats'    => 'admin', 'client_package' => 'admin',
+    'update_check'  => 'admin', 'update_apply'  => 'admin',
     'package_list'   => 'admin', 'package_delete' => 'admin',
 ];
 
