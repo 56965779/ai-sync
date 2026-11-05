@@ -57,11 +57,12 @@ ai-sync/
 ├── sync_config.example.json   # 服务端配置模板（全部 token 为 CHANGE_ME_* 占位符）
 ├── sync.conf.example          # 客户端配置模板
 ├── admin.html                 # 静态管理面板（目录授权 / token / 备份 / 审计）
-├── tools/*.php                # PHP 服务端按需加载的 12 个工具模块
+├── tools/*.php                # PHP 服务端按需加载的 11 个工具模块
 ├── docs/                      # 部署 / API / 架构 / 基准 / 威胁模型
+├── .github/                   # CI（语法 / 双端契约 / 文档检查） + issue / PR 模板
 ├── LICENSE  README.md
 ├── CHANGELOG.md  CONTRIBUTING.md  SECURITY.md
-└── .gitignore  .gitattributes
+└── .gitignore  .gitattributes  .editorconfig
 ```
 
 **这些文件必须在同一目录，不是没整理：**
@@ -108,7 +109,7 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 ```json
 {
-  "version": "4.39.0",
+  "version": "4.39.4",
   "global": {
     "allow_ips": [],
     "rate_limit": { "enabled": true, "per_token_per_minute": 300,
@@ -388,7 +389,7 @@ curl -s -X POST ... -d '{"action":"help","name":"upload",...}'
 | 双端协议等价有缺口 | 仓库里的 Python 服务端已补 `client_download`；但历史部署的 Python 端可能没有该 action，切过去会让自升级失效。用 `{"action":"help"}` 确认。 |
 | 自升级无签名 | 只做 MD5 + `py_compile`，见上。 |
 | 日志时间窗口 | 部分 PHP 日志格式（`[04-Nov-2026 05:54:08 UTC]`）不匹配 24h 窗口解析，且本地时间与服务端 UTC 可能有偏移；以 `top_errors` / `known_noise` 为准。 |
-| 版本号 | `APP_VERSION` 仍为 `v4.39.0`，但仓库已含后续加固；用 MD5 判版本。 |
+| 版本号 | `APP_VERSION` 当前为 `v4.39.4`；仍建议用 MD5（`--check-update` / `--selfcheck`）判版本，因为本地副本与服务端分发版可能不同步。 |
 | 无一键脚本 | 本仓库不提供 `scripts/quickstart.py`，请按上面的手工步骤。 |
 | 管理面板 | `admin.html` 是静态页面，浏览器全链路未在本轮实测覆盖，见 [docs/ADMIN.md](docs/ADMIN.md)。 |
 

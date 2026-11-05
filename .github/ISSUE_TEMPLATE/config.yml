@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞（私有报告）
+    url: https://github.com/56965779/ai-sync/security/advisories/new
+    about: token 泄露、未授权访问、命令注入一类问题请走私密通道，不要在公开 issue 里贴利用细节。
+  - name: 部署与排错文档
+    url: https://github.com/56965779/ai-sync/blob/main/docs/DEPLOYMENT.md
+    about: 部署形态、nginx / php-fpm 配置、常见报错先看这里。

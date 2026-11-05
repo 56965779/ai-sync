@@ -1,0 +1,80 @@
+name: Bug 报告
+description: 报告可复现的错误（不是安全漏洞）
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **安全漏洞请不要走这里**：涉及 token 泄露、未授权访问、命令注入一类的报告，
+        请用仓库 Security → Report a vulnerability（私有通道），见 SECURITY.md。
+
+        提交前请把 **token、生产 URL、内网 IP** 全部替换成 `<REDACTED>`。
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 出问题的部分
+      options:
+        - 客户端 sync.py
+        - PHP 服务端 sync_api.php
+        - Python 服务端 sync_api.py
+        - 管理面板 admin.html
+        - 文档 / 部署脚本
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 优先贴 `python3 sync.py --version` 与其 MD5（项目以 MD5 判版本，版本号可能滞后）
+      placeholder: "v4.39.4 / md5: xxxx"
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 运行环境
+      description: 客户端 OS + Python 版本；服务端形态（Termux / nginx+php-fpm / Apache / 容器）+ PHP 或 Python 版本
+      placeholder: "客户端 Windows 11 + Python 3.13.14；服务端 Android Termux + nginx + php-fpm 8.2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请给出可直接照抄的命令或 action 请求体（记得脱敏）
+      placeholder: |
+        1. python3 sync.py --status
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 vs 实际结果
+      description: 有 JSON 信封就贴 JSON，不要只贴截图
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息（可选）
+      description: 服务端 `{"action":"ping"}` 的 deployment_warnings、error_log 片段、是否可稳定复现
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 已把 token / 生产 URL / 内网地址脱敏
+          required: true
+        - label: 这是可复现的功能问题，不是安全漏洞
+          required: true

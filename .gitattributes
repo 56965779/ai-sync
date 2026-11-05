@@ -1,0 +1,42 @@
+# ⚠️ 重要：不要给已发布的源码/文档加 `text` 或 `eol` 属性。
+#
+# 本项目的版本判定不是版本号，而是 sync.py 的字节（服务端取
+# `__DIR__/sync.py` 的 MD5 放进 whoami.client_md5，客户端拿它决定是否
+# 自动升级）。git 一旦对已发布文件做行尾转换，所有部署点会在下次运行时
+# 被静默升级成本地字节不同的副本 —— 功能等价，但这是不该由仓库维护动作
+# 顺带触发的全网变更。
+#
+# 因此本文件只声明「新增文件」的行尾，不改动既有文件：
+# 仓库里既有文件的行尾现状是混合的（sync.py / sync_api.php / admin.html
+# 为 CRLF，CHANGELOG.md / docs/*.md / *.example 为 LF）。若要统一，
+# 必须单独一次提交、单独评估（见 CHANGELOG 里的说明）。
+
+# ---- 新增：CI 与仓库元文件 ---------------------------------
+.github/**        text eol=lf
+*.yml             text eol=lf
+*.yaml            text eol=lf
+.gitignore        text eol=lf
+.editorconfig     text eol=lf
+
+# Windows 批处理必须 CRLF
+*.bat             text eol=crlf
+*.cmd             text eol=crlf
+*.ps1             text eol=crlf
+
+# ---- 二进制 ------------------------------------------------
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.gz    binary
+*.tar   binary
+*.7z    binary
+
+# ---- GitHub 语言统计 ---------------------------------------
+sync.py       linguist-language=Python
+sync_api.py   linguist-language=Python
+sync_api.php  linguist-language=PHP
+admin.html    linguist-detectable=true
+docs/*        linguist-documentation=true

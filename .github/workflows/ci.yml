@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python 语法（${{ matrix.python-version }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.8 是 README 承诺的最低版本；3.12 覆盖当前主流解释器
+        python-version: ["3.8", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 语法编译检查
+        run: python -m py_compile sync.py sync_api.py
+      - name: 客户端可启动性（不触网）
+        run: python sync.py --version
+
+  php:
+    name: PHP 语法（${{ matrix.php-version }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.0", "8.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+      - name: 全量 lint
+        run: |
+          set -e
+          find . -name '*.php' -not -path './.git/*' -print0 \
+            | xargs -0 -n1 -P4 php -l
+
+  contract:
+    name: 双端契约一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 检查 action 集合 / 版本号 / 敏感文件
+        run: python .github/scripts/check_contract.py
+
+  docs:
+    name: 文档链接与占位符
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: README 内部链接必须存在
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r link; do
+            if [ ! -e "$link" ]; then
+              echo "::error file=README.md::链接指向的文件不存在: $link"
+              fail=1
+            fi
+          done < <(grep -oE '\]\((docs/[A-Za-z0-9._-]+|[A-Za-z0-9._-]+\.md)\)' README.md | sed 's/^](//;s/)$//' | sort -u)
+          exit $fail
+      - name: 示例配置必须是占位符
+        run: |
+          set -e
+          if grep -nE '"(admin_token|tokens)"\s*:\s*"[^C][^H]' sync_config.example.json; then
+            echo "::error file=sync_config.example.json::示例配置里出现疑似真实 token"
+            exit 1
+          fi
+          echo "示例配置占位符检查通过"

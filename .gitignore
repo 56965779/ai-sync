@@ -1,0 +1,68 @@
+# ============================================================
+# ai-sync .gitignore
+# 原则：凡是可能带上 token / 生产地址 / 本地状态的文件，一律不入库。
+# 本项目「拿到 token ≈ 拿到服务器」，配置文件的保护优先级最高。
+# ============================================================
+
+# ---- 运行期配置（含明文 token，泄露即等于服务器失守）--------
+sync_config.json
+sync_config.local.json
+sync.conf
+sync.conf.local
+*.local.json
+*.local.conf
+
+# 环境变量文件
+.env
+.env.*
+!.env.example
+
+# ---- 客户端本地状态 / 同步产物 ------------------------------
+.sync_*
+.sync_backup/
+.sync_*.json
+ai-sync/
+*.log
+*.bak
+*.orig
+*.rej
+*.tmp
+
+# 服务端运行期产物
+audit_log*
+oplog*
+error_log*
+*.sqlite
+*.db
+webhooks/
+packages/
+backups/
+
+# ---- Python ------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# ---- 打包 / 分发产物 ---------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# ---- 编辑器 / 操作系统 -------------------------------------
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~

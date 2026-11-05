@@ -7,6 +7,42 @@
 
 ---
 
+## 未发布 — 仓库维护（2026-11-05）
+
+只改仓库工程化与文档一致性，**不动任何 `sync.py` / `sync_api.*` 的字节**，
+因此不触发全网自动升级，`APP_VERSION` 保持 `v4.39.4`。
+
+### 新增
+- `.gitignore`：此前只存在于文档描述里，仓库实际没有。缺少它时，按 README 执行
+  `cp sync_config.example.json sync_config.json` 后再 `git add .`，会把明文 token 提交上去
+  —— 而本项目的前提是「拿到 token ≈ 拿到服务器」。现在把运行期配置、同步产物、
+  审计/操作日志、打包产物一次性排除。
+- `.gitattributes`：只声明**新增文件**的行尾，既有源码保持原字节（见文件内注释）。
+- `.editorconfig`：UTF-8 / LF / 4 空格，避免编辑器引入混合行尾。
+- `.github/workflows/ci.yml`：Python 语法（3.8 / 3.12）、PHP lint（8.0 / 8.3）、
+  双端契约一致性、README 内部链接与示例配置占位符检查。
+- `.github/scripts/check_contract.py`：零依赖检查器 —— 双端 action 集合必须完全相同、
+  README `N 个 action` 必须等于实现数量、`APP_VERSION` 与配置模板版本必须一致、
+  `sync_config.json` / `sync.conf` 不得被 git 跟踪。
+- `.github/ISSUE_TEMPLATE/`（bug / feature 表单 + 安全私密报告入口）、
+  `.github/PULL_REQUEST_TEMPLATE.md`（把「契约影响」列为必勾项）。
+
+### 修复（文档与实现漂移）
+- `README.md` 配置示例的 `version` 由 `4.39.0` 更正为 `4.39.4`，与 `sync_config.example.json` 一致。
+- `README.md` 已知边界表里「`APP_VERSION` 仍为 `v4.39.0`」更正为当前 `v4.39.4`，
+  并保留「用 MD5 判版本」的原始建议。
+- `README.md` 仓库结构树里 `tools/*.php` 写作「12 个工具模块」，实际为 11 个，已更正；
+  同时补上 `.github/` 与 `.editorconfig`。
+
+### 已核对（无需改动）
+- `sync_api.php` 与 `sync_api.py` 的 `HELP_SPEC` 各 67 个 action，集合完全相同。
+- README 内部文档链接（6 篇 docs + 3 个根文件）全部存在。
+- 示例配置全部为 `CHANGE_ME_*` 占位符；历史提交中从未出现 `sync_config.json` / `sync.conf`。
+- `python3 -m py_compile sync.py sync_api.py` 通过。
+
+---
+
+
 ## v4.39.4 (2026-11-05) — 开源发布准备
 
 此版本把「AI 契约加固」正式定型并补齐开源必要条件。服务端 `whoami.client_md5` 取同目录

@@ -1,0 +1,58 @@
+name: 功能建议
+description: 建议新增 action 或改进现有能力
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本项目的第一原则是**给 AI 用**：新增能力要能被 Agent 零学习成本地用上，
+        并保持 `{ok, code, stdout, stderr, command}` 契约与退出码语义。
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 你想让 AI 完成什么
+      description: 描述真实使用场景，而不是先给实现方案
+      placeholder: "让 Agent 在不重启服务端的情况下热加载某个 tools 模块"
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 现有能力为什么不够
+      description: 列出你试过的 action / 命令，以及卡在哪一步
+    validations:
+      required: true
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: 期望的调用与返回（可选）
+      description: 如果能给出 action 名、必填参数、返回字段和错误码，会更容易评估
+      placeholder: |
+        {"action":"xxx","path":"...","token":"..."}
+        期望返回: {"ok":true,"code":0,...}
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响面
+      options:
+        - 新增 action（不改现有契约）
+        - 改进现有 action（可能改契约）
+        - 纯客户端体验
+        - 文档
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: dual
+    attributes:
+      label: 确认
+      options:
+        - label: 我理解新增 action 需要 PHP 与 Python 两端同时实现，否则切端会 404
+          required: true
