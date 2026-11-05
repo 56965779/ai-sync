@@ -296,7 +296,7 @@ function action_error_log($req, $cfg) {
                 return fail($E['INVALID_PARAM'], 'bad_regex', 'regex 参数无效');
             }
         } else {
-            $grep_needle = mb_strtolower($grep);
+            $grep_needle = _mb_lower($grep);
         }
     }
     foreach ($all_lines as $ln) {
@@ -305,7 +305,7 @@ function action_error_log($req, $cfg) {
             if ($use_regex) {
                 if (@preg_match($grep_delim . $grep_needle . $grep_delim, $ln) !== 1) continue;
             } else {
-                if (mb_strpos(mb_strtolower($ln), $grep_needle) === false) continue;
+                if (_mb_stripos($ln, $grep_needle) === false) continue;
             }
         }
         // ts 过滤 (只对 JSON 行生效)

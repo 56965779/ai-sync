@@ -239,4 +239,37 @@ curl -s -X POST <API> -d '{"action":"audit_log","lines":20,"token":"<admin_token
 接入后帮我把 67 个 action 全部实测一遍，逐条给 ok/code/error
 ```
 
+
+## 六、上述卡点的修复与复验（同日）
+
+上面五个卡点里，四个已改成"缺了也能跑"，一个改成"面板直接告诉你"。
+
+### 改了什么
+
+| 问题 | 修复 | 文件 |
+|---|---|---|
+| 缺 `zip` 只给 `sync.conf` | 新增 `_zip_pack_pure()`：纯 PHP 写 zip（store + CRC32 + local/central header + EOCD，UTF-8 flag），`_zip_pack()` 先试 ZipArchive、失败自动用内置打包器 | `sync_api.php` |
+| 缺 `mbstring` 让 exec/search/shell 全 1099 | `_utf8_trunc()` / `_mb_lower()` / `_mb_stripos()` 按 `function_exists` 回退；`exec.php` `shell.php` `dev_tools.php` `error_log.php` 里 8 处裸 `mb_*` 调用全部换成这三个封装 | `sync_api.php` + 4 个 tools |
+| 缺 `curl` 让 `webhook_test` 1099 | 新增 `_http_request_simple()`：curl 优先，无 curl 用 `stream_context`（`ignore_errors` 保证 4xx 也能读到状态码）；响应标 `transport` / `degraded` | `sync_api.php` + `webhook.php` + `batch_deploy.php` |
+| 面板 Token 框不会自动生成 | 留空时前端 `crypto.getRandomValues` 生成 `tk-`+40 hex，回填输入框，创建后把明文显示在表单下方并尝试写入剪贴板 | `admin.html` |
+| 1099 只有 "Internal server error" | 管理员身份下响应体直接带 `exception` / `exception_at` / `exception_hint`（自动翻译成"缺哪个扩展 + 装完必须重启"）；普通 token 仍只给 `exception_class` | `sync_api.php` |
+| 不知道自己在降级 | `_deployment_warnings()` 增加三条扩展告警；面板首屏新增「环境自检」卡（五个灯 + 告警逐条）；`health.extensions` 与告警同源 | `sync_api.php` + `admin.html` |
+
+### 怎么验的
+
+用 `AI_SYNC_SIMULATE_MISSING_EXT=zip,mbstring,curl` 在**同一台装了全部扩展**的机器上强制走降级分支（否则没法卸载扩展来复现）：
+
+| 场景 | 结果 |
+|---|---|
+| `ping` 预检 | `warning_count=3`，三条分别是 curl(high) / zip(low) / mbstring(low) |
+| 面板「环境自检」 | 五个灯里 curl / mbstring / zip 标黄并写出降级后果（浏览器实点） |
+| 面板留空加 Token | 无 alert，自动生成 `tk-2ab4d6bf…`，表单下方显示明文，token 列表从 7 变 8（浏览器实点） |
+| `client_package` | `zip_builder=pure_php`，811988 字节；`unzip -t` 四个文件全 OK，Python `zipfile.testzip()` 返回 `None` |
+| `exec` / `search` / `shell_run` | 全部 `ok=true`（此前缺 mbstring 时是 1099） |
+| `webhook_test` | `http_code=405`、`ok=true`、`transport=stream`、`degraded=true` |
+| 全量 sweep（降级模式） | 81 次调用 74 成功 / 7 失败 —— 与全扩展模式**完全一致**（6 条是主动断言的错误码，1 条是 `error_log` 无日志源） |
+| 全量 sweep（正常模式） | 同上，`ping` 的 `deployment_warning_count=0` |
+| 1099 根因回传 | 故意让服务端抛 `Error("Call to undefined function mb_substr()")`：admin 收到 `exception` + `exception_at=sync_api.php:…` + `exception_hint="缺少 PHP 扩展 mbstring…"`；普通 token 只收到 `exception_class` |
+
+结论：**扩展缺失从"功能不可用且不可诊断"变成"功能降级可跑 + 面板明示 + 1099 自带根因"**。
 相关：[AI-USAGE.md](AI-USAGE.md)（一条链接的接入法）、[ADMIN.md](ADMIN.md)（面板逐模块）、[DEPLOYMENT.md](DEPLOYMENT.md)（部署与前置）。

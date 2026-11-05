@@ -216,35 +216,21 @@ function action_webhook_test($req, $cfg) {
         $payload['signature'] = 'sha256=' . hash_hmac('sha256', json_encode($payload), $secret);
     }
     $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $body,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER         => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_PROTOCOLS      => defined('CURLPROTO_HTTP') ? (CURLPROTO_HTTP | CURLPROTO_HTTPS) : 3,
-    ]);
-    // DNS rebinding 防护: 锁定已校验的公网 IP
-    // 修复 P1-1: 解析不到公网 IP 时拒绝测试 (防 rebind 到内网), 除非显式允许内网
+    // DNS rebinding 防护: 解析到公网 IP 并交给 curl 锁定 (CURLOPT_RESOLVE)
+    // 无 curl 时退到 stream: 仍做公网校验, 但无法锁定 IP, 在响应里标记 degraded
     $_hk = parse_url($url);
+	$_resolve = [];
     $_resolved_ok = false;
     if (!empty($_hk['host'])) {
         $_hname = $_hk['host'];
         $_hport = $_hk['port'] ?? (($_hk['scheme'] ?? '') === 'https' ? 443 : 80);
         foreach (_webhook_resolve_public_ips($_hname) as $_hip) {
-            curl_setopt($ch, CURLOPT_RESOLVE, ["$_hname:$_hport:$_hip"]);
+            $_resolve[] = "$_hname:$_hport:$_hip";
             $_resolved_ok = true;
             break;
         }
     }
     if (!$_resolved_ok && empty($cfg['WEBHOOK_ALLOW_INTERNAL'])) {
-        curl_close($ch);
         audit_log('webhook_test', $req, $E['WEBHOOK_FAILED'], [
             'url' => $url, 'reason' => 'dns_rebinding_blocked',
         ]);
@@ -252,11 +238,18 @@ function action_webhook_test($req, $cfg) {
             '无法解析到公网 IP (可能 DNS rebind 到内网). 如目标是内网服务, 设置 WEBHOOK_ALLOW_INTERNAL=true',
             ['url' => $url, 'hint' => 'webhook 目标必须解析到公网 IP, 防 SSRF']);
     }
-    $resp = curl_exec($ch);
-    $http_code = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
-    $curl_err = curl_error($ch);
-    $total_time = curl_getinfo($ch, CURLINFO_TOTAL_TIME);
-    curl_close($ch);
+    $_r = _http_request_simple($url, [
+        'method'          => 'POST',
+        'body'            => $body,
+        'headers'         => ['Content-Type: application/json'],
+        'timeout'         => 8,
+        'connect_timeout' => 5,
+        'resolve'         => $_resolve,
+    ]);
+    $http_code  = (int)$_r['http_code'];
+    $curl_err   = $_r['error'];
+    $total_time = $_r['total_time'];
+    $transport  = $_r['transport'];
     $passed = ($http_code >= 200 && $http_code < 300);
     audit_log('webhook_test', $req, $passed ? 0 : $E['WEBHOOK_FAILED'], [
         'url' => $url, 'http_code' => $http_code, 'curl_error' => $curl_err ?: null,
@@ -266,7 +259,9 @@ function action_webhook_test($req, $cfg) {
         'http_code'  => $http_code,
         'passed'     => $passed,
         'curl_error' => $curl_err ?: null,
-        'total_time' => round($total_time, 3),
+        'total_time' => round((float)$total_time, 3),
+        'transport'  => $transport,
+        'degraded'   => ($transport !== 'curl'),
         'tip'        => $passed ? 'webhook 可达, 可安全注册' : 'webhook 不可达或返回非 2xx, 请检查 URL/签名/防火墙',
     ]);
 }

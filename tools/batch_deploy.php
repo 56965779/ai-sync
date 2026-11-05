@@ -515,35 +515,26 @@ function action_batch_deploy($req, $cfg) {
                         ['received' => $post_check]);
                 }
             }
-            $ch = curl_init($post_url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER         => true,
-                CURLOPT_NOBODY         => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_PROTOCOLS      => defined('CURLPROTO_HTTP') ? (CURLPROTO_HTTP | CURLPROTO_HTTPS) : 3,
-            ]);
-            // DNS rebinding 防护: 锁定已校验的公网 IP
+            // post_check: 有 curl 用 curl(可锁定已校验的 IP); 无 curl 退到 stream HEAD
+            $_resolve = [];
             if (function_exists('_webhook_resolve_public_ips')) {
                 $_hk = parse_url($post_url);
                 if (!empty($_hk['host'])) {
                     $_hname = $_hk['host'];
                     $_hport = $_hk['port'] ?? (($_hk['scheme'] ?? '') === 'https' ? 443 : 80);
                     foreach (_webhook_resolve_public_ips($_hname) as $_hip) {
-                        curl_setopt($ch, CURLOPT_RESOLVE, ["$_hname:$_hport:$_hip"]);
+                        $_resolve[] = "$_hname:$_hport:$_hip";
                         break;
                     }
                 }
             }
-            curl_exec($ch);
-            $http_code = intval(curl_getinfo($ch, CURLINFO_HTTP_CODE));
-            $curl_err = curl_error($ch);
-            curl_close($ch);
-            $post_output = $curl_err ? "curl_error: $curl_err" : "HTTP $http_code";
+            $_probe = _http_request_simple($post_url, [
+                'method' => 'HEAD', 'timeout' => 10, 'connect_timeout' => 5, 'resolve' => $_resolve,
+            ]);
+            $http_code = (int)$_probe['http_code'];
+            $curl_err  = $_probe['error'];
+            $post_transport = $_probe['transport'];
+            $post_output = $curl_err ? ($post_transport . "_error: " . $curl_err) : ("HTTP " . $http_code);
             if ($post_expect !== '') {
                 $post_passed = (strpos((string)$http_code, $post_expect) !== false);
             } else {

@@ -127,7 +127,7 @@ function action_search($req, $cfg) {
                     'path'  => $rel_path,
                     'line'  => $idx + 1,
                     // 与 Python 端一致: 单条命中最多回显 500 字符, 防超长行打爆调用方上下文
-                    'match' => mb_substr($line, 0, 500),
+                    'match' => _utf8_trunc($line, 500),
                 ];
                 if ($context_before || $context_after) {
                     $hit['context'] = [];

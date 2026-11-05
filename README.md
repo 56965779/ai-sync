@@ -57,6 +57,7 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 | Python 服务端 | ✅ POSIX / ✅ Windows | POSIX 实机跑通（Python 3.8.20，`sync_api.py --port 8900` 明文 HTTP，`ping` 返回 200）；Windows 实机跑通（Python 3.13.12）：`ping` / `whoami` / `--auto pull` / `health` / `doctor` / `exec`（异步协议 + cwd + 文件写回）/ 超时 `rc=124` / `shell` 持久会话全部通过。Windows 需 Git 自带 `sh` 在 PATH（`fcntl` 已降级、`exec` 经 MSYS2 `sh`） |
 | 客户端包安装包下载 | ✅ 实测（2026-11-05） | `client_package` 生成的 `pkg_key` 链接：`200` / `223674` 字节 / `application/zip`；解包 → `--workdir` 自举 → `--whoami` → `--auto pull`（`pulled=11`、`failed=0`）全链路跑通，详见 [docs/AI-USAGE.md](docs/AI-USAGE.md) |
 | macOS 客户端 | ⚠️ 未实测 | 有代码级降级保护，但未实机验证 |
+| 扩展缺失降级 | ✅ 实测（2026-11-05） | `AI_SYNC_SIMULATE_MISSING_EXT=zip,mbstring,curl` 强制走降级分支：67/67 action 仍全部通过，`client_package` 产出 812KB zip 且 `unzip -t` / Python `zipfile` 双通过，`webhook_test` 返回 `transport=stream` |
 | 管理面板浏览器全流程 | ✅ 实测（2026-11-05） | 登录 → 加目录授权（文件数自动统计 3）→ 加 Token（六项权限）→ 一键打包（219.5KB、SHA256）→ `pkg_key` 下载 → 客户端自举 → `--auto pull`（`pulled=3`、`failed=0`），九步全通 |
 | 67 个 action 全量实测 | ✅ 实测（2026-11-05） | 用 `admin_token` 逐条打真实参数：**67/67 可达并通过**；错误码 `1001/1002/1004/1005/1011/1012/1099` 逐项验证。详见 [docs/SELF-TEST.md](docs/SELF-TEST.md) |
 
@@ -177,8 +178,9 @@ cp sync.conf.example        sync.conf           # 客户端配置，已被 .giti
 
 ### 前置条件
 
-- **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`（**缺了 `exec` / `search` / `shell_run` 直接返 1099「Internal server error」，看不出根因**）、`zip`（生成客户端安装包，缺了面板静默降级成只给 `sync.conf`）、`curl`（`webhook_test` 用）
-- **装完扩展必须重启 PHP 进程**（`php -S` 重启、`php-fpm` reload）：扩展只在进程启动时加载，只 `apt install` 不重启等于没装（实测踩过）
+- **PHP 8.0+**，扩展：`json`、`hash`（默认带）、`mbstring`、`zip`、`curl`
+  缺了不会把功能弄死，会**自动降级**并在面板「环境自检」标黄：`mbstring` → 截断改 `substr/stripos`（中文可能少一个字）；`zip` → 用**内置纯 PHP 打包器**(不压缩，包变大但可正常解压)；`curl` → `webhook_test`/`batch_deploy` 退到 stream（失去 IP 固定）。装齐即可回到完整行为
+- **装完扩展必须重启 PHP 进程**（`php -S` 重启、`php-fpm` reload）：扩展只在进程启动时加载，只 `apt install` 不重启等于没装（实测踩过）。面板「环境自检 → 重新检测」能直接告诉你还缺什么
 - 一个把 `.php` 交给 php-fpm 的 Web 服务；**只在本机验证**时不用装 nginx，直接用 `php -S`
 
 ### 放文件：五项必须在同一目录

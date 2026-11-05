@@ -1006,7 +1006,7 @@ function action_shell_run($req, $cfg) {
     $timed_out = ($rc == 124);
     foreach ([$envfile, $cmdfile, $runner, $rc_path, $cwd_path, $envout_path, $timeout_flag, $done_flag] as $pp) @unlink($pp);
     audit_log('shell_run', $req, ($rc == 0 && !$timed_out) ? 0 : $E['INTERNAL'], [
-        'session_id' => $sid, 'cmd_preview' => mb_substr($cmd, 0, 300), 'return_code' => $rc,
+        'session_id' => $sid, 'cmd_preview' => _utf8_trunc($cmd, 300), 'return_code' => $rc,
         'timed_out' => $timed_out ? 1 : 0, 'cwd' => $new_cwd,
         'elapsed_ms' => (int)round((microtime(true) - $t0) * 1000),
     ]);
@@ -1227,7 +1227,7 @@ function action_shell_list($req, $cfg) {
         $cmd = (isset($v['cmd']) && is_string($v['cmd'])) ? $v['cmd'] : '';
         $jobs[] = ['job_id' => $k, 'status' => $alive ? 'running' : 'done',
                    'session_id' => (isset($v['session_id']) && is_string($v['session_id'])) ? $v['session_id'] : '',
-                   'cmd_preview' => mb_substr($cmd, 0, 120), 'pid' => intval($v['pid'] ?? 0)];
+                   'cmd_preview' => _utf8_trunc($cmd, 120), 'pid' => intval($v['pid'] ?? 0)];
     }
     return ok(['sessions' => $sessions, 'jobs' => $jobs, 'session_count' => count($sessions), 'job_count' => count($jobs)]);
 }

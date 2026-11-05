@@ -7,6 +7,23 @@
 
 ---
 
+## 未发布 — 扩展缺失全部降级（2026-11-05）
+
+服务端 `sync_api.php` / `admin.html` 与 4 个 tools 文件；客户端 `sync.py` 未改（`whoami.client_md5` 不变，不触发自动升级）。
+
+### 修复
+- **缺 `zip` 时不再只给一个 `sync.conf`**：新增纯 PHP zip 写入器 `_zip_pack_pure()`（store 压缩 + CRC32 + 中央目录，UTF-8 文件名 flag），`_zip_pack()` 在 ZipArchive 不可用时自动接管。实测 `unzip -t` / `zipfile.testzip()` 双通过。
+- **缺 `mbstring` 不再让 `exec` / `search` / `shell_run` 返 1099**：新增 `_utf8_trunc` / `_mb_lower` / `_mb_stripos` 三个回退封装，替换 `exec.php`、`shell.php`、`dev_tools.php`、`error_log.php` 里 8 处裸 `mb_*` 调用。
+- **缺 `curl` 不再让 `webhook_test` 返 1099**：新增 `_http_request_simple()`（curl 优先、stream 回退，4xx 也能读到状态码），`webhook_test` 多返回 `transport` / `degraded`；`batch_deploy` 的 `post_check` 同样走它。
+- **面板 Token 输入框留空自动生成**：`crypto.getRandomValues` → `tk-` + 40 hex，创建后当场显示明文并尝试写剪贴板（原行为：只弹「请填写 Token、名称和至少一个 Scope」）。
+- **1099 直接带根因**：管理员身份下响应体新增 `exception` / `exception_at` / `exception_hint`（自动识别"缺哪个扩展、装完必须重启进程"）；非 admin 仍只回 `exception_class`，不泄漏路径。
+- **部署预检覆盖扩展**：`_deployment_warnings()` 新增三条（curl=high，zip/mbstring=low，含降级后果与重启提示）；`health.extensions` 改用同一判定函数；面板首屏新增「环境自检」卡。
+
+### 测试
+- 新增 `AI_SYNC_SIMULATE_MISSING_EXT=zip,mbstring,curl` 开关（仅用于验证降级路径，生产勿设）。
+- 全扩展模式与三扩展缺失模式各跑一遍 81 次真实调用：均为 74 成功 / 7 失败（6 条主动断言的错误码 + 1 条 `error_log` 无日志源），67 个 action 覆盖一致。
+- 浏览器实点面板：环境自检卡五灯、留空加 Token 自动生成并显示明文。
+
 ## 未发布 — Python 服务端 Windows 兼容（2026-11-05）
 
 **改动 `sync_api.py`**（客户端 `sync.py` 未改，`whoami.client_md5` 不变，不触发客户端自动升级）。

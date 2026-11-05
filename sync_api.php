@@ -1357,14 +1357,239 @@ function audit_log($action, $req, $code, $extra = []) {
 }
 
 /** 审计字段截断: 按 UTF-8 字符边界截断, 不产生半个多字节字符 */
-function _audit_trunc($s, $n) {
+function _audit_trunc($s, $n) { return _utf8_trunc($s, $n); }
+
+/**
+ * 扩展是否可用.
+ * 默认只看真实环境; 设 AI_SYNC_SIMULATE_MISSING_EXT=zip,mbstring,curl 可强制走降级分支,
+ * 用于在没有对应扩展的机器上验证"降级也能跑", 生产环境不要设.
+ */
+function _ext_ok($ext) {
+    static $missing = null;
+    if ($missing === null) {
+        $env = (string)@getenv('AI_SYNC_SIMULATE_MISSING_EXT');
+        $missing = ($env === '') ? [] : array_map('trim', explode(',', strtolower($env)));
+    }
+    return !in_array(strtolower((string)$ext), $missing, true);
+}
+
+/** mbstring 是否真的可用 (含模拟缺失开关) */
+function _mbstring_ok() { return function_exists('mb_substr') && _ext_ok('mbstring'); }
+
+/** curl 是否真的可用 (含模拟缺失开关) */
+function _curl_ok() { return function_exists('curl_init') && _ext_ok('curl'); }
+
+/**
+ * UTF-8 安全截断.
+ * 有 mbstring: 按字符截断 (中文不会断字).
+ * 无 mbstring: 按字节截断后回退到合法 UTF-8 边界 —— 能力保留, 只是可能少一个字.
+ */
+function _utf8_trunc($s, $n) {
     $s = (string)$s;
+    $n = (int)$n;
+    if ($n <= 0 || $s === '') return '';
+    if (_mbstring_ok()) return mb_substr($s, 0, $n, 'UTF-8');
     if (strlen($s) <= $n) return $s;
-    if (function_exists('mb_substr')) return mb_substr($s, 0, $n, 'UTF-8');
     $s = substr($s, 0, $n);
-    // 无 mbstring 时向前回退到合法 UTF-8 边界 (n 很小, 开销可忽略)
     while ($s !== '' && @preg_match('//u', $s) !== 1) $s = substr($s, 0, -1);
     return $s;
+}
+
+/** 小写化: 无 mbstring 时按 ASCII 回退 */
+function _mb_lower($s) {
+    return _mbstring_ok() ? mb_strtolower((string)$s, 'UTF-8') : strtolower((string)$s);
+}
+
+/** 大小写不敏感查找: 无 mbstring 时按 ASCII 回退 */
+function _mb_stripos($haystack, $needle) {
+    return _mbstring_ok()
+        ? @mb_stripos((string)$haystack, (string)$needle, 0, 'UTF-8')
+        : @stripos((string)$haystack, (string)$needle);
+}
+
+/** DOS 时间戳 (zip 格式, 有效范围 1980-2107) */
+function _zip_dos_time($ts) {
+    $ts = (int)$ts;
+    if ($ts < 315532800) $ts = 315532800; // 1980-01-01, 早于此的按此计
+    $d = getdate($ts);
+    $t  = (($d['hours'] & 0x1F) << 11) | (($d['minutes'] & 0x3F) << 5) | (($d['seconds'] >> 1) & 0x1F);
+    $dd = ((($d['year'] - 1980) & 0x7F) << 9) | (($d['mon'] & 0x0F) << 5) | ($d['mday'] & 0x1F);
+    return [$t, $dd];
+}
+
+/**
+ * 纯 PHP 打包 (store 不压缩): 不需要 ZipArchive 扩展.
+ * 结构: 每条 local file header + 文件名 + 原数据; 末尾 central directory + EOCD.
+ * 文件名按 UTF-8 处理 (general purpose flag bit 11), unzip / Python zipfile / Windows 资源管理器均可读.
+ */
+function _zip_pack_pure(array $files) {
+    $out = '';
+    $cd  = '';
+    $count = 0;
+    list($ztime, $zdate) = _zip_dos_time(time());
+    foreach ($files as $name => $data) {
+        $name = str_replace('\\', '/', (string)$name);
+        $data = (string)$data;
+        $nlen = strlen($name);
+        if ($nlen === 0 || $nlen > 65535) return null;
+        $size = strlen($data);
+        $crc  = crc32($data);
+        if ($crc < 0) $crc += 4294967296; // 32 位平台上 crc32 可能返回负数
+        $offset = strlen($out);
+        $flags  = 0x0800; // UTF-8 文件名标记
+        $out .= "PK\x03\x04" . pack('v', 20) . pack('v', $flags) . pack('v', 0)
+              . pack('v', $ztime) . pack('v', $zdate)
+              . pack('V', $crc) . pack('V', $size) . pack('V', $size)
+              . pack('v', $nlen) . pack('v', 0)
+              . $name . $data;
+        $cd .= "PK\x01\x02" . pack('v', 20) . pack('v', 20) . pack('v', $flags) . pack('v', 0)
+             . pack('v', $ztime) . pack('v', $zdate)
+             . pack('V', $crc) . pack('V', $size) . pack('V', $size)
+             . pack('v', $nlen) . pack('v', 0) . pack('v', 0)
+             . pack('v', 0) . pack('v', 0) . pack('V', 0)
+             . pack('V', $offset) . $name;
+        $count++;
+    }
+    if ($count === 0) return null;
+    $cd_off = strlen($out);
+    return $out . $cd . "PK\x05\x06" . pack('v', 0) . pack('v', 0)
+         . pack('v', $count) . pack('v', $count)
+         . pack('V', strlen($cd)) . pack('V', $cd_off) . pack('v', 0);
+}
+
+/**
+ * 打包入口: 有 ZipArchive 用它(压缩), 没有就用内置纯 PHP 打包器(store).
+ * 返回 ['data' => zip 二进制, 'builder' => 'ziparchive'|'pure_php'], 都失败返回 null.
+ */
+function _zip_pack(array $files) {
+    if (class_exists('ZipArchive') && _ext_ok('zip')) {
+        $tmp = @tempnam(sys_get_temp_dir(), 'aisync_');
+        if ($tmp === false) return null;
+        $tmp .= '.zip';
+        $zip = new ZipArchive();
+        if ($zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+            foreach ($files as $name => $data) $zip->addFromString((string)$name, (string)$data);
+            $zip->close();
+            $data = @file_get_contents($tmp);
+            @unlink($tmp);
+            if ($data !== false && $data !== '') return ['data' => $data, 'builder' => 'ziparchive'];
+        } else {
+            @unlink($tmp);
+        }
+    }
+    $pure = _zip_pack_pure($files);
+    return $pure === null ? null : ['data' => $pure, 'builder' => 'pure_php'];
+}
+
+/**
+ * 通用 HTTP 请求: 有 curl 用它, 没有 curl 就退回 stream (能力保留, 但无法锁定 IP).
+ * 返回 ['http_code'=>int, 'error'=>string|null, 'body'=>string,
+ *       'total_time'=>float, 'transport'=>'curl'|'stream']
+ * $opts: method(GET/POST/HEAD) / body / headers[] / timeout / connect_timeout / resolve[]
+ *        resolve 形如 ["host:port:ip"], 仅 curl 支持 (防 DNS rebinding 的 IP 固定)
+ */
+function _http_request_simple($url, array $opts = []) {
+    $method  = strtoupper((string)($opts['method'] ?? 'GET'));
+    $body    = array_key_exists('body', $opts) ? (string)$opts['body'] : null;
+    $headers = (array)($opts['headers'] ?? []);
+    $timeout = max(1, (int)($opts['timeout'] ?? 10));
+    $ctime   = max(1, (int)($opts['connect_timeout'] ?? min(5, $timeout)));
+    $resolve = (array)($opts['resolve'] ?? []);
+    $only_head = ($method === 'HEAD');
+    $t0 = microtime(true);
+
+    if (_curl_ok()) {
+        $ch = curl_init($url);
+        $opt = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER         => false,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_CONNECTTIMEOUT => $ctime,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_FOLLOWLOCATION => false,
+            // 只允许 http/https, 防止 file:// gopher:// 等被当成 URL
+            CURLOPT_PROTOCOLS      => defined('CURLPROTO_HTTP') ? (CURLPROTO_HTTP | CURLPROTO_HTTPS) : 3,
+        ];
+        if ($headers) $opt[CURLOPT_HTTPHEADER] = $headers;
+        if ($only_head) {
+            $opt[CURLOPT_NOBODY] = true;
+        } elseif ($body !== null) {
+            $opt[CURLOPT_POST] = true;
+            $opt[CURLOPT_POSTFIELDS] = $body;
+        } elseif ($method !== 'GET') {
+            $opt[CURLOPT_CUSTOMREQUEST] = $method;
+        }
+        if ($resolve) $opt[CURLOPT_RESOLVE] = $resolve;
+        curl_setopt_array($ch, $opt);
+        $resp = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        return [
+            'http_code'  => $code,
+            'error'      => $err !== '' ? $err : null,
+            'body'       => is_string($resp) ? $resp : '',
+            'total_time' => round(microtime(true) - $t0, 3),
+            'transport'  => 'curl',
+        ];
+    }
+
+    // ---- 无 curl: stream 回退 ----
+    $hdr = '';
+    foreach ($headers as $h) $hdr .= $h . "\r\n";
+    $ctx = stream_context_create([
+        'http' => [
+            'method'          => $method,
+            'header'          => $hdr,
+            'content'         => (!$only_head && $body !== null) ? $body : '',
+            'timeout'         => $timeout,
+            'ignore_errors'   => true,   // 4xx/5xx 也要读到响应, 否则拿不到状态码
+            'follow_location' => 0,
+            'max_redirects'   => 0,
+            'protocol_version'=> 1.1,
+        ],
+        'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+    ]);
+    $resp = @file_get_contents($url, false, $ctx);
+    $code = 0;
+    if (!empty($http_response_header) && preg_match('#\s(\d{3})\s#', (string)$http_response_header[0], $m)) {
+        $code = (int)$m[1];
+    }
+    $err = null;
+    if ($resp === false) {
+        $le = error_get_last();
+        $err = 'stream_request_failed' . (!empty($le['message']) ? ': ' . $le['message'] : '');
+    }
+    return [
+        'http_code'  => $code,
+        'error'      => $err,
+        'body'       => is_string($resp) ? $resp : '',
+        'total_time' => round(microtime(true) - $t0, 3),
+        'transport'  => 'stream',
+    ];
+}
+
+/** 把异常信息翻成人能直接执行的结论 (缺哪个扩展 / 装完要重启) */
+function _exception_hint($msg) {
+    $msg = (string)$msg;
+    if (preg_match('/Call to undefined function\s+([a-z_]+[a-z0-9_]*)/i', $msg, $m)) {
+        $fn = strtolower($m[1]);
+        if (strpos($fn, 'mb_') === 0) {
+            return '缺少 PHP 扩展 mbstring (函数 ' . $m[1] . ' 未定义): 安装 php-mbstring 后必须重启 php-fpm / php -S 进程';
+        }
+        if (strpos($fn, 'curl_') === 0) {
+            return '缺少 PHP 扩展 curl (函数 ' . $m[1] . ' 未定义): 安装 php-curl 后必须重启 php-fpm / php -S 进程';
+        }
+        if (strpos($fn, 'zip') === 0) {
+            return '缺少 PHP 扩展 zip (函数 ' . $m[1] . ' 未定义): 安装 php-zip 后必须重启 php-fpm / php -S 进程';
+        }
+        return '缺少提供函数 ' . $m[1] . ' 的 PHP 扩展: 安装对应扩展后必须重启 php-fpm / php -S 进程';
+    }
+    if (stripos($msg, 'ZipArchive') !== false) {
+        return '缺少 PHP 扩展 zip: 安装 php-zip 后必须重启 php-fpm / php -S 进程';
+    }
+    return null;
 }
 
 /** 请求字段名列表 (只记名字不记值, 永不落 token/密码/content 等敏感内容) */
@@ -2802,6 +3027,14 @@ try {
     $result = fail($E['INTERNAL'], 'exception', 'Internal server error (see audit log)', [
         'exception_class' => get_class($ex),
     ]);
+    // 管理员身份下直接把根因写进响应体: 不用再去 audit_log 里 grep exception
+    if (!empty($GLOBALS['CONFIG']['IS_ADMIN'])) {
+        $__emsg  = (string)$ex->getMessage();
+        $__ehint = _exception_hint($__emsg);
+        $result['exception']      = _utf8_trunc($__emsg, 300);
+        $result['exception_at']   = basename((string)$ex->getFile()) . ':' . $ex->getLine();
+        if ($__ehint !== null) $result['exception_hint'] = $__ehint;
+    }
 }
 
 // 大文件下载: 流式分支 (跳过 json_encode + gzip, 峰值内存 O(块))
@@ -3011,6 +3244,28 @@ function _deployment_warnings($cfg) {
             'hint' => '改用非 root 用户运行 php-fpm, 或关闭 exec_enabled, 并为 exec 配置 IP 白名单.',
         ];
     }
+    // 扩展缺失: 现在的代码已经全部能降级跑, 但部署者必须知道自己在用哪条兜底路径
+    if (!_curl_ok()) {
+        $w[] = [
+            'code' => 'missing_php_extension', 'severity' => 'high',
+            'message' => '未启用 curl 扩展: webhook_test 与 batch_deploy 的 post_check 降级为 stream 传输',
+            'hint' => '影响: 失去 CURLOPT_RESOLVE 的 IP 固定(防 DNS rebinding 弱化). 装 php-curl 后必须重启 php-fpm / php -S 进程, 否则等于没装',
+        ];
+    }
+    if (!class_exists('ZipArchive') || !_ext_ok('zip')) {
+        $w[] = [
+            'code' => 'missing_php_extension', 'severity' => 'low',
+            'message' => '未启用 zip 扩展: 客户端打包自动改用内置打包器(不压缩), 包里文件变大但仍可正常解压',
+            'hint' => '想要压缩包就用 apt install php-zip, 装完必须重启 php-fpm / php -S 进程',
+        ];
+    }
+    if (!_mbstring_ok()) {
+        $w[] = [
+            'code' => 'missing_php_extension', 'severity' => 'low',
+            'message' => '未启用 mbstring 扩展: 截断/大小写处理自动回退为 substr/stripos, exec / search / shell 能力保留',
+            'hint' => '副作用仅是超长中文截断可能少一个字. 装 php-mbstring 并重启 PHP 进程即可恢复按字符截断',
+        ];
+    }
     return ['config_file' => $CONFIG_FILE, 'config_in_app_dir' => $cfg_in_app,
             'package_dir' => $pkg_dir, 'warnings' => $w];
 }
@@ -3055,12 +3310,13 @@ function action_health($req, $cfg) {
         'work_dir_writable' => is_writable($work_dir),
         'disk_free_mb'      => $disk ? round($disk / 1048576, 1) : null,
         'disk_total_mb'     => $total ? round($total / 1048576, 1) : null,
+        // 与 _deployment_warnings 同源: 用 _ext_ok/_curl_ok 判定, 面板自检卡与告警不会互相矛盾
         'extensions'        => [
-            'zlib'  => extension_loaded('zlib'),
-            'json'  => extension_loaded('json'),
-            'curl'  => extension_loaded('curl'),
-            'mbstring' => extension_loaded('mbstring'),
-            'zip'   => class_exists('ZipArchive'),
+            'zlib'     => extension_loaded('zlib'),
+            'json'     => extension_loaded('json'),
+            'curl'     => _curl_ok(),
+            'mbstring' => _mbstring_ok(),
+            'zip'      => (class_exists('ZipArchive') && _ext_ok('zip')),
         ],
         'deployment'        => _deployment_warnings($cfg),
     ]);
@@ -3960,31 +4216,26 @@ SH;
     }
     $sync_py_size = strlen($sync_py);
 
-    // 打包成 zip
-    if (!class_exists('ZipArchive')) {
+    // 打包成 zip: 有 ZipArchive 用它(压缩), 没有就用内置纯 PHP 打包器(store) —— 不再降级成单个 sync.conf
+    $pack = _zip_pack([
+        'sync.py'    => $sync_py,
+        'sync.conf'  => $conf_content,
+        'README.txt' => $readme,
+        'start.sh'   => $start_sh,
+    ]);
+    if ($pack === null) {
+        // 两条路都失败(极端情况): 退回单文件, 但把原因写清楚, 不要假装成功
         return ok([
-            'mode' => 'single_file',
+            'mode'     => 'single_file',
             'filename' => 'sync.conf',
-            'content' => $conf_content,
-            'message' => '服务器无 ZipArchive 扩展, 返回 sync.conf 内容',
+            'content'  => $conf_content,
+            'message'  => 'zip 打包失败(临时目录不可写或内存不足), 已回退为返回 sync.conf 内容',
         ]);
     }
-
-    $tmp_zip = tempnam(sys_get_temp_dir(), 'aisync_') . '.zip';
-    $zip = new ZipArchive();
-    if ($zip->open($tmp_zip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-        return fail($GLOBALS['E']['INTERNAL'], 'zip_create_failed', '无法创建 zip');
-    }
-    $zip->addFromString('sync.py', $sync_py);
-    $zip->addFromString('sync.conf', $conf_content);
-    $zip->addFromString('README.txt', $readme);
-    $zip->addFromString('start.sh', $start_sh);
-    $zip->close();
-
-    $zip_data = file_get_contents($tmp_zip);
-    $sha256 = hash('sha256', $zip_data);
-    $size = strlen($zip_data);
-    @unlink($tmp_zip);
+    $zip_data    = $pack['data'];
+    $zip_builder = $pack['builder'];
+    $sha256      = hash('sha256', $zip_data);
+    $size        = strlen($zip_data);
 
     // 保存安装包: 默认放在 Web 根之外 (PACKAGE_DIR), 下载走带随机 key 的 GET 接口.
     //   旧实现放在 __DIR__/packages/ (Web 根内), 依赖 .htaccess (nginx 不生效),
@@ -4049,18 +4300,17 @@ SH;
     $readme  = preg_replace('#\{\{[A-Z0-9_]+\}\}#', '', $readme);
 
     // ====== 重新打 zip (README.txt 已替换成真实 URL/curl/SHA256) ======
-    $tmp_zip2 = tempnam(sys_get_temp_dir(), 'aisync_') . '.zip';
-    $zip2 = new ZipArchive();
-    if ($zip2->open($tmp_zip2, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
-        $zip2->addFromString('sync.py',     $sync_py);
-        $zip2->addFromString('sync.conf',   $conf_content);
-        $zip2->addFromString('README.txt',  $readme);
-        $zip2->addFromString('start.sh',    $start_sh);
-        $zip2->close();
-        $zip_data = file_get_contents($tmp_zip2);
-        $sha256   = hash('sha256', $zip_data);  // README 变了, 重新算 sha256/size
-        $size     = strlen($zip_data);
-        @unlink($tmp_zip2);
+    $pack2 = _zip_pack([
+        'sync.py'     => $sync_py,
+        'sync.conf'   => $conf_content,
+        'README.txt'  => $readme,
+        'start.sh'    => $start_sh,
+    ]);
+    if ($pack2 !== null) {
+        $zip_data    = $pack2['data'];
+        $zip_builder = $pack2['builder'];
+        $sha256      = hash('sha256', $zip_data);  // README 变了, 重新算 sha256/size
+        $size        = strlen($zip_data);
         // 覆盖 packages/ 里的 zip 为新版 (README 已替换)
         @file_put_contents($pkg_path, $zip_data, LOCK_EX);
     }
@@ -4072,6 +4322,7 @@ SH;
         'package_id'    => $pkg_filename,
         'sha256'        => $sha256,
         'size'          => $size,
+        'zip_builder'   => $zip_builder,
         'scope'         => $scope_name,
         'token_name'    => $token_info['name'] ?? '',
         'permissions'   => $perms,

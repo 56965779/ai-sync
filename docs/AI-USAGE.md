@@ -221,6 +221,20 @@ scopes_list  token_add  token_delete  tokens_list
 
 还有一条最容易浪费时间的：**装完扩展不重启 PHP 进程 = 没装**。`apt install php-zip` 成功、`php -m` 能看到 `zip`，面板照样报缺 —— 因为 `php -S` / `php-fpm` 是在安装之前启动的，扩展只在进程启动时加载。
 
+### 这几个坑已经改掉了（2026-11-05）
+
+同一天的代码修复后，上面三条扩展问题不再是"功能不可用"：
+
+| 原来 | 现在 |
+|---|---|
+| 缺 `zip` → 只给 `sync.conf` | 自动改用**内置纯 PHP 打包器**，照样出 zip（不压缩，约大 4 倍，`unzip -t` 通过） |
+| 缺 `mbstring` → `exec` / `search` / `shell_run` 全 1099 | 自动回退 `substr` / `stripos`，**三个能力都正常**，只是超长中文截断可能少一个字 |
+| 缺 `curl` → `webhook_test` 1099 | 自动退到 stream 传输，响应里标 `transport=stream`、`degraded=true`（失去 IP 固定） |
+| 面板 Token 框留空 → 只弹 alert | **留空自动生成 `tk-` 开头的随机 token**，并当场显示明文、尝试复制到剪贴板 |
+| 1099 只有 "Internal server error" | 管理员身份直接拿到 `exception` + `exception_at` + `exception_hint`（写明缺哪个扩展、要重启进程）；普通 token 仍看不到路径 |
+
+面板首屏新增「环境自检」卡：`json / zlib / mbstring / curl / zip` 五个灯 + 部署告警逐条解释，缺哪个、会退到什么、装完要不要重启，都写在卡上。
+
 ### 定位 1099 的正确姿势
 
 ```bash

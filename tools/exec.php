@@ -344,7 +344,7 @@ function action_exec($req, $cfg) {
     if ($rc === 124) $timed_out = true;
     // 修复: 审计记录截断后的 cmd (前 300 字符), 便于排查; 完整 cmd 太长且可能含密钥, 不全记
     audit_log('exec', $req, ($rc === 0 && !$timed_out) ? 0 : $E['INTERNAL'], [
-        'cmd_preview'  => mb_substr($cmd, 0, 300),
+        'cmd_preview'  => _utf8_trunc($cmd, 300),
         'cmd_len'      => strlen($cmd),
         'timeout'      => $timeout,
         'timed_out'    => $timed_out ? 1 : 0,
@@ -353,8 +353,8 @@ function action_exec($req, $cfg) {
         'stderr_len'   => strlen($stderr),
         'return_code'  => $rc,
         'elapsed_ms'  => (int)round((microtime(true) - $GLOBALS['_exec_t0']) * 1000),
-        'stdout_preview' => mb_substr($stdout, 0, 500),
-        'stderr_preview' => mb_substr($stderr, 0, 500),
+        'stdout_preview' => _utf8_trunc($stdout, 500),
+        'stderr_preview' => _utf8_trunc($stderr, 500),
     ]);
 
     $resp = [
