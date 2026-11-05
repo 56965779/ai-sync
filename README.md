@@ -1,27 +1,42 @@
 # ai-sync
 
-> **给 AI 用的服务器遥控器 —— 一个文件，替掉整套 SSH 手工活。**
->
-> 服务端放上去，任何能跑 Python 3.8 的设备就拿到 **71 个带 JSON 契约的远程能力**：
-> 读文件、找代码、改代码、跑命令、部署、回滚。输出恒为 `{"ok":true,...}`，
-> Agent 不用 SSH、不用猜输出、不用怕改错 —— 每步都能预览、校验、复验、一键撤销。
+> **把你的服务器交给 AI 干活：打包一条链接，发给 AI，收工。**
 
-```bash
-python3 sync.py --workdir ~/my-server   # 一次自举，配置回写，末行 READY
-python3 sync.py --whoami                # 权限边界 + 服务端能力清单，一次拿全
-python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三方一致
+在自己的服务器上装好一个单文件后端，打开管理面板：**加目录、加 Token、一键打包客户端**——你会得到一条链接，比如：
 
-# 每条命令的返回都是这个形状，直接断言字段：
-# {"ok":true,"code":0,"stdout":"...","stderr":"","command":"..."}
+```
+https://你的域名/sync/server/sync_api.php?pkg_key=xxxxx
 ```
 
-**AI 专用 · 跨设备 · 跨平台 · 零依赖**：笔记本、手机 Termux、容器、CI runner、另一台服务器，装好服务端就能用。
+把这条链接丢给任何 AI（Claude / 豆包 / Cursor / Copilot…），它会自己下载客户端、读代码、改代码、部署、回滚。**你不需要懂 SSH，不需要教 AI 命令格式，也不怕它改错**——每个动作都有预览、语法检查、MD5 复验和一键回滚。
 
-`MIT` · `Python 3.8+` · `PHP 8.0+` · `71 个 action` · `PHP / Python 双服务端` · `全部输出机器可读`
+这不是又一个文件同步工具，是给 AI 用的**远程工作台**：71 个带 JSON 契约的远程能力，输出恒为 `{"ok":true,...}`，AI 不用猜输出、不用正则、不用登 SSH。
+
+```bash
+# AI 拿到链接之后，自己会跑完这一整套：
+python3 sync.py --workdir ~/my-server   # 自举，配置回写，末行 READY
+python3 sync.py --whoami                # 权限边界 + 服务端能力清单
+python3 sync.py --auto pull             # 拉代码，落盘 MD5 三方一致
+python3 sync.py --deploy 文件 --smart-verify   # 改完部署，MD5 复验
+```
+
+`MIT` · `Python 3.8+` · `PHP 8.0+` · `71 个 action` · `PHP / Python 双服务端` · `零依赖客户端`
 
 [![CI](https://github.com/56965779/ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/56965779/ai-sync/actions/workflows/ci.yml)
 
-> 本项目的文档只写**实测跑通过的路径**。没跑过的部署形态会明确标注，不写成承诺。
+> 本文档只写**实测跑通过的路径**，没跑过的部署形态会明确标注，不写成承诺。
+
+---
+
+## 30 秒看懂你能干什么
+
+| 你在面板做的事 | AI 自动完成的事 |
+|---|---|
+| 授权一个目录（比如 `~/网站`） | 浏览、搜索、读取该目录全部文件 |
+| 发一个 Token（勾选读写/执行权限） | 改代码、跑命令、部署上线 |
+| 一键打包客户端，复制链接 | 下载链接、自举配置、干活、回报结果 |
+
+**典型场景**：你对 AI 说"把服务器上那个博客的主题色改成深色，然后部署"——AI 自己 pull 代码、本地分析、修改、语法检查、原子部署、MD5 校验，出问题一键 rollback。你只说了一句话。
 
 ---
 
@@ -29,15 +44,15 @@ python3 sync.py --auto pull             # 拉代码：failed=0，落盘 MD5 三�
 
 | | SSH / SFTP / 自建脚本 | ai-sync |
 |---|---|---|
-| 输出 | 人类文本，靠正则猜 | 恒定 JSON 信封 `{ok, code, stdout, stderr, command}` |
-| 能力发现 | 靠人写文档 | 服务端自描述 `{"action":"help"}` / 客户端 `--api-help` |
-| 出错 | 一条命令改坏就得手工救 | `--dry-run` → 语法检查 → 原子覆盖 + 自动备份 → MD5 复验 → `--rollback` |
-| 权限 | 一个账号全开 | 按 token 分 `read/write/delete/exec/lint/backup/admin`，按 scope 隔离目录 |
-| 可追溯 | 靠 `history` | 审计日志 / 操作日志 / 最近变更 / 错误日志 |
-| 连续操作 | 每条一次 RTT | `pipeline` 一次往返跑多步；`--batch` 单进程连续只读探查 |
-| 长任务 | 断了就丢 | 持久 shell 会话（`shell_open` / `shell_run`）+ 后台任务轮询（`shell_job`） |
+| 输出 | 人类文本，AI 靠正则猜 | 恒定 JSON 信封 `{ok, code, stdout, stderr, command}` |
+| 能力发现 | 靠人写文档 | 服务端自描述 `{"action":"help"}`，AI 零文档接入 |
+| 出错 | 一条命令改坏就得手工救 | 语法检查 → 原子覆盖 + 自动备份 → MD5 复验 → `--rollback` |
+| 权限 | 一个账号全开 | 按 token 分 read/write/delete/exec/admin，按 scope 隔离目录 |
+| 可追溯 | 靠 history | 审计日志 / 操作日志 / 最近变更 / 错误日志 |
+| 长任务 | 断了就丢 | 持久 shell 会话 + 后台任务轮询 |
 
 ---
+
 
 ## 实测覆盖范围（请先读这一节）
 
